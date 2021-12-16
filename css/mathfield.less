@@ -60,12 +60,16 @@
   flex-flow: row;
   justify-content: space-between;
   align-items: flex-end;
-  min-height: 39px; /* Need some room for the virtual keyboard toggle */
+  // min-height: 39px; /* Need some room for the virtual keyboard toggle */
+  // **MODIFY**: Reduce min-height. 
+  min-height: 28px;
 
   /* Prevent the browser from trying to interpret touch gestures in the field */
   /* "Disabling double-tap to zoom removes the need for browsers to
         delay the generation of click events when the user taps the screen." */
-  touch-action: none;
+  // touch-action: none;
+  // **MODIFY**: Open touch action to handle scroll on iPad. 
+  touch-action: initial;
   width: 100%;
 }
 
