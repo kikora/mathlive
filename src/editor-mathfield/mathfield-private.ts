@@ -174,15 +174,15 @@ export class MathfieldPrivate implements Mathfield {
       options.readOnly
         ? { ...options, virtualKeyboardMode: 'off' }
         : {
-            plonkSound: 'plonk.wav',
-            keypressSound: {
-              spacebar: 'keypress-spacebar.wav',
-              return: 'keypress-return.wav',
-              delete: 'keypress-delete.wav',
-              default: 'keypress-standard.wav',
-            },
-            ...options,
-          }
+          plonkSound: 'plonk.wav',
+          keypressSound: {
+            spacebar: 'keypress-spacebar.wav',
+            return: 'keypress-return.wav',
+            delete: 'keypress-delete.wav',
+            default: 'keypress-standard.wav',
+          },
+          ...options,
+        }
     );
     this.macros = this.options.macros as NormalizedMacroDictionary;
     this._placeholders = new Map();
@@ -216,10 +216,10 @@ export class MathfieldPrivate implements Mathfield {
     if (!this.options.readOnly) {
       this.virtualKeyboard = options.useSharedVirtualKeyboard
         ? new VirtualKeyboardDelegate({
-            targetOrigin: this.options.sharedVirtualKeyboardTargetOrigin,
-            originValidator: this.options.originValidator,
-            mathfield: this,
-          })
+          targetOrigin: this.options.sharedVirtualKeyboardTargetOrigin,
+          originValidator: this.options.originValidator,
+          mathfield: this,
+        })
         : new VirtualKeyboard(this.options, this);
     }
     this.plonkSound = this.options.plonkSound as HTMLAudioElement;
@@ -274,13 +274,17 @@ export class MathfieldPrivate implements Mathfield {
     // On touch capable device, we do not create a textarea to capture keyboard
     // events as this has the side effect of triggering the OS virtual keyboard
     // which we want to avoid
+    // **MODIFY**: We uses the OS virtual keyboard, so we create a textarea to capture keyboard and triggering the OS virtual keyboard
     markup += "<span class='ML__textarea'>";
-    markup += isTouchCapable()
-      ? `<span class='ML__textarea__textarea' tabindex="-1" role="textbox"></span>`
-      : '<textarea class="ML__textarea__textarea" autocapitalize="off" autocomplete="off" ' +
-        `autocorrect="off" spellcheck="false" aria-hidden="true" tabindex="${
-          element.tabIndex ?? 0
-        }"></textarea>`;
+    // markup += isTouchCapable()
+    //   ? `<span class='ML__textarea__textarea' tabindex="-1" role="textbox"></span>`
+    //   : '<textarea class="ML__textarea__textarea" autocapitalize="off" autocomplete="off" ' +
+    //     `autocorrect="off" spellcheck="false" aria-hidden="true" tabindex="${
+    //       element.tabIndex ?? 0
+    //     }"></textarea>`;
+    markup += '<textarea class="ML__textarea__textarea" autocapitalize="off" autocomplete="off" ' +
+      `autocorrect="off" spellcheck="false" aria-hidden="true" tabindex="${element.tabIndex ?? 0
+      }"></textarea>`;
     markup += '</span>';
 
     // 2/ The field, where the math equation will be displayed
@@ -314,10 +318,10 @@ export class MathfieldPrivate implements Mathfield {
     if (!this.element.children) {
       console.error(
         '%cMathlive: Something went wrong and the mathfield could not be created.%c\n' +
-          'If you are using Vue, this may be because you are using the ' +
-          'runtime-only build of Vue. Make sure to include ' +
-          "'runtimeCompiler: true' in your Vue configuration. There" +
-          'may a warning from Vue in the log above.',
+        'If you are using Vue, this may be because you are using the ' +
+        'runtime-only build of Vue. Make sure to include ' +
+        "'runtimeCompiler: true' in your Vue configuration. There" +
+        'may a warning from Vue in the log above.',
 
         'color:red;font-family:system-ui;font-size:1.2rem;font-weight:bold',
         'color:inherith;font-family:system-ui;font-size:inherit;font-weight:inherit'
@@ -1172,7 +1176,7 @@ export class MathfieldPrivate implements Mathfield {
         if (
           !v.field.style.fontSize ||
           Math.abs(scaleDownFontsize - parseFloat(v.field.style.fontSize)) >=
-            0.2
+          0.2
         ) {
           needsUpdate = true;
           v.field.style.fontSize = `${scaleDownFontsize}px`;
