@@ -472,12 +472,11 @@ export class Atom {
     // like inline shortcuts (which rely on the undo buffer and serialization)
     // will fail, for example in `e^pi`.
 
+    // **MODIFY**: We wrap all of the text in sup and sub into a bracket wrapper({...}).
     if (this.branch('subscript') !== undefined) {
       const sub = atomsToLatex(this.subscript, options);
       if (sub.length === 0) {
-        result += '_';
-      } else if (sub.length === 1) {
-        result += '_' + sub;
+        result += '_{ }';
       } else {
         result += `_{${sub}}`;
       }
@@ -486,14 +485,14 @@ export class Atom {
     if (this.branch('superscript') !== undefined) {
       const sup = atomsToLatex(this.superscript, options);
       if (sup.length === 0) {
-        result += '^';
+        result += '^{ }';
       } else if (sup.length === 1) {
         if (sup === '\u2032') {
-          result += '^\\prime ';
+          result += '^{\\prime} ';
         } else if (sup === '\u2033') {
-          result += '^\\doubleprime ';
+          result += '^{\\doubleprime} ';
         } else {
-          result += '^' + sup;
+          result += `^{${sup}}`;
         }
       } else {
         result += `^{${sup}}`;
@@ -1083,17 +1082,17 @@ export class Atom {
   ): Box {
     const above = this.superscript
       ? Atom.createBox(
-          new Context(parentContext, this.style, 'superscript'),
-          this.superscript,
-          { newList: true }
-        )
+        new Context(parentContext, this.style, 'superscript'),
+        this.superscript,
+        { newList: true }
+      )
       : null;
     const below = this.subscript
       ? Atom.createBox(
-          new Context(parentContext, this.style, 'subscript'),
-          this.subscript,
-          { newList: true }
-        )
+        new Context(parentContext, this.style, 'subscript'),
+        this.subscript,
+        { newList: true }
+      )
       : null;
 
     if (!above && !below) return options.base.wrap(parentContext);
@@ -1214,28 +1213,28 @@ export class Atom {
     const result =
       typeof value === 'string' || value === undefined
         ? new Box((value as string | undefined) ?? null, {
-            type,
-            mode: this.mode,
-            maxFontSize: context.scalingFactor,
-            style: {
-              variant: 'normal', // Will auto-italicize
-              ...this.style,
-              letterShapeStyle: context.letterShapeStyle,
-              fontSize: Math.max(
-                1,
-                context.size + context.mathstyle.sizeDelta
-              ) as FontSize,
-            },
-            classes,
-            newList: options?.newList,
-          })
+          type,
+          mode: this.mode,
+          maxFontSize: context.scalingFactor,
+          style: {
+            variant: 'normal', // Will auto-italicize
+            ...this.style,
+            letterShapeStyle: context.letterShapeStyle,
+            fontSize: Math.max(
+              1,
+              context.size + context.mathstyle.sizeDelta
+            ) as FontSize,
+          },
+          classes,
+          newList: options?.newList,
+        })
         : Atom.createBox(context, value, {
-            type,
-            mode: this.mode,
-            style: this.style,
-            classes,
-            newList: options?.newList,
-          }) ?? new Box(null);
+          type,
+          mode: this.mode,
+          style: this.style,
+          classes,
+          newList: options?.newList,
+        }) ?? new Box(null);
 
     // Set other attributes
     if (context.isTight) result.isTight = true;
