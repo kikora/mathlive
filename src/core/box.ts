@@ -76,7 +76,10 @@ const INTER_ATOM_SPACING = {
   mbin: { mord: 4, mop: 4, mopen: 4, minner: 4 },
   mrel: { mord: 5, mop: 5, mopen: 5, minner: 5 },
   mclose: { mop: 3, mbin: 4, mrel: 5, minner: 3 },
-  // **MODIFY**: Remove spacing after mpunct atom to handle spacing after comma(1, 2 ==> 1,2)
+  /**
+   * **MODIFY**: Remove spacing after mpunct atom to handle spacing after comma(1, 2 ==> 1,2)
+   * Follow up on this issue to remove the modification when it's solved. - https://github.com/arnog/mathlive/issues/1354
+   */
   // mpunct: { mord: 3, mop: 3, mrel: 3, mopen: 3, mpunct: 3, minner: 3 },
   mpunct: { mord: 0, mop: 3, mrel: 3, mopen: 3, mpunct: 3, minner: 3 },
   minner: { mord: 3, mop: 3, mbin: 4, mrel: 5, mopen: 3, mpunct: 3, minner: 3 },
