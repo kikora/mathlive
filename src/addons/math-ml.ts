@@ -387,7 +387,6 @@ function scanOperator(stream, final, options) {
         lastType = isUnit ? 'mi' : 'mo';
       }
     }
-    // MathML += '</mrow>';
 
     if (
       (stream.lastType === 'mi' || stream.lastType === 'mn') &&
