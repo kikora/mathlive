@@ -35,7 +35,7 @@ function relationName(atom: Atom): string {
 
   if (!result) console.log('unknown relationship');
 
-  return result ?? 'foreldre';
+  return result ?? 'gruppe';
 }
 
 /**
