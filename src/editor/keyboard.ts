@@ -450,7 +450,9 @@ export function delegateKeyboardEvents(
       }
     },
     setAriaLabel: (value: string): void => {
-      textarea.setAttribute('aria-label', 'after: ' + value);
+      /* Kikora MODIFICATION: Don't know why it says after, the screen readers says it out loud, removing it */
+      // textarea.setAttribute('aria-label', 'after: ' + value);
+      textarea.setAttribute('aria-label', value);
     },
     moveTo: (x: number, y: number): void => {
       textarea.style.top = `${y}px`;

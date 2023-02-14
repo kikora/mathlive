@@ -81,9 +81,17 @@ export function defaultAnnounceHook(
     //         atomsToMathML(mathfield.model.root, mathfield.options) +
     //         '</math>'
     // );
-
-    liveText = speakableText(mathfield.options, '', mathfield.model.root);
-    mathfield.keyboardDelegate!.setAriaLabel('after: ' + liveText);
+    /* Kikora MODIFICATION: The content of the input filed is printed as both aria-live and label,
+     * causing the screen reader to read it multiple times. We make it update just the label.
+     * But, in order for it to read anything at all when focus we need the aria-live to change.
+     * So keep the trick of swtiching the last space character, just with a empty liveText.
+     * This will cause most screen readers to say "blank" at the end, but is the best compromised
+     * I have found.
+     */
+    // liveText = speakableText(mathfield.options, '', mathfield.model.root);
+    // mathfield.keyboardDelegate!.setAriaLabel(liveText);
+    const label = speakableText(mathfield.options, '', mathfield.model.root);
+    mathfield.keyboardDelegate!.setAriaLabel(label);
 
     /** * FIX -- testing hack for setting braille ***/
     // mathfield.accessibleNode.focus();

@@ -175,11 +175,14 @@ export function render(
   field.innerHTML = mathfield.options.createHTML(box.toMarkup());
   mathfield.fieldContent = field.querySelector('.ML__mathlive')!;
 
-  mathfield.accessibleNode.innerHTML = mathfield.options.createHTML(
-    '<math xmlns="http://www.w3.org/1998/Math/MathML">' +
-      toMathML(model.root, mathfield.options) +
-      '</math>'
-  );
+  /* Kikora MODIFICATION: This is the mathml. JAWS does not read the well, for example it'll read 45/32
+   * as 45 32 (not mentioning a fraction). We're using the aria-label instead, so we'll remove this.
+   */
+  // mathfield.accessibleNode.innerHTML = mathfield.options.createHTML(
+  //   '<math xmlns="http://www.w3.org/1998/Math/MathML">' +
+  //     toMathML(model.root, mathfield.options) +
+  //     '</math>'
+  // );
 
   //
   // 4. Render the selection/caret
