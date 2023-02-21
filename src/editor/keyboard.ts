@@ -252,15 +252,7 @@ export function delegateKeyboardEvents(
         // If we did not create a text-area because we're on a mobile
         // device and we don't want to use the OS virtual keyboard, capture
         // the key events possibly coming from an attached hardware keyboard
-        /* Kikora MODIFICATION: On touch devices we have a problem that key's can
-         * not be prevented from triggering. On none touch devices (that uses textarea
-         * rather than span) it works fine.
-         * For now, we hack it and prevent the two key presses we know we don't want,
-         * '*' and '\'
-         */
-        // if (event.key.length === 1) handlers.typedText(event.key);
-        if (event.key.length === 1 && event.key !== '*' && event.key !== '\\')
-          handlers.typedText(event.key);
+        if (event.key.length === 1) handlers.typedText(event.key);
       }
     },
     true
