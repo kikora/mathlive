@@ -1,6 +1,6 @@
 {
-  "name": "mathlive",
-  "version": "0.69.8",
+  "name": "@kikora/mathlive",
+  "version": "0.69.9",
   "description": "Render and edit beautifully typeset math",
   "license": "MIT",
   "funding": {
@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/arnog/mathlive.git"
+    "url": "https://github.com/kikora/mathlive.git"
   },
   "bugs": "https://github.com/arnog/mathlive/issues/",
   "scripts": {
@@ -19,16 +19,12 @@
     "lint": "eslint --fix src/",
     "prepare": "bash ./scripts/build.sh production && husky install",
     "start": "bash ./scripts/start.sh",
-    "test": "bash ./scripts/test.sh",
-    "version": "bash ./scripts/version.sh",
-    "postversion": "bash ./scripts/github-release.sh"
+    "test": "bash ./scripts/test.sh"
   },
   "main": "./dist/mathlive.min.js",
   "module": "./dist/mathlive.min.mjs",
   "types": "./dist/public/mathlive.d.ts",
-  "files": [
-    "/dist"
-  ],
+  "files": ["/dist"],
   "prettier": {
     "arrowParens": "always",
     "bracketSpacing": true,
@@ -47,11 +43,7 @@
     "npm": ">=6.14.8",
     "node": ">=12.0.0"
   },
-  "browserslist": [
-    "> 1%",
-    "maintained node versions",
-    "not dead"
-  ],
+  "browserslist": ["> 1%", "maintained node versions", "not dead"],
   "author": "Arno Gourdol <arno@arno.org>",
   "contributors": [
     "Louis Larpin (lilfaf.github.io)",
