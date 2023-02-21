@@ -31,29 +31,6 @@
   "files": [
     "/dist"
   ],
-  "prettier": {
-    "arrowParens": "always",
-    "bracketSpacing": true,
-    "endOfLine": "lf",
-    "jsxSingleQuote": false,
-    "proseWrap": "always",
-    "quoteProps": "consistent",
-    "semi": true,
-    "singleQuote": true,
-    "indentSize": 2,
-    "tabWidth": 2,
-    "trailingComma": "es5",
-    "useTabs": false
-  },
-  "engines": {
-    "npm": ">=6.14.8",
-    "node": ">=12.0.0"
-  },
-  "browserslist": [
-    "> 1%",
-    "maintained node versions",
-    "not dead"
-  ],
   "author": "Arno Gourdol <arno@arno.org>",
   "contributors": [
     "Louis Larpin (lilfaf.github.io)",
