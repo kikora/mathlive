@@ -1,5 +1,5 @@
 {
-  "name": "mathlive",
+  "name": "@kikora/mathlive",
   "version": "0.89.1",
   "description": "A web component for math input",
   "license": "MIT",
@@ -9,9 +9,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/arnog/mathlive.git"
+    "url": "https://github.com/kikora/mathlive.git"
   },
-  "bugs": "https://github.com/arnog/mathlive/issues/",
+  "bugs": "https://github.com/kikora/mathlive/issues/",
   "scripts": {
     "build": "bash ./scripts/build.sh",
     "clean": "bash ./scripts/clean.sh",
@@ -19,9 +19,7 @@
     "lint": "eslint --fix src/",
     "prepare": "bash ./scripts/build.sh production",
     "start": "bash ./scripts/start.sh",
-    "test": "bash ./scripts/test.sh",
-    "version": "bash ./scripts/version.sh",
-    "postversion": "bash ./scripts/github-release.sh"
+    "test": "bash ./scripts/test.sh"
   },
   "main": "./dist/mathlive.min.js",
   "module": "./dist/mathlive.min.mjs",
@@ -32,6 +30,29 @@
   "types": "./dist/public/mathlive.d.ts",
   "files": [
     "/dist"
+  ],
+  "prettier": {
+    "arrowParens": "always",
+    "bracketSpacing": true,
+    "endOfLine": "lf",
+    "jsxSingleQuote": false,
+    "proseWrap": "always",
+    "quoteProps": "consistent",
+    "semi": true,
+    "singleQuote": true,
+    "indentSize": 2,
+    "tabWidth": 2,
+    "trailingComma": "es5",
+    "useTabs": false
+  },
+  "engines": {
+    "npm": ">=6.14.8",
+    "node": ">=12.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "maintained node versions",
+    "not dead"
   ],
   "author": "Arno Gourdol <arno@arno.org>",
   "contributors": [
