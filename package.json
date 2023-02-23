@@ -19,13 +19,14 @@
     "lint": "eslint --fix src/",
     "prepare": "bash ./scripts/build.sh production",
     "start": "bash ./scripts/start.sh",
-    "test": "bash ./scripts/test.sh"
+    "test": "bash ./scripts/test.sh",
+    "watch": "bash ./scripts/watch.sh"
   },
-  "main": "./dist/mathlive.min.js",
-  "module": "./dist/mathlive.min.mjs",
+  "main": "./dist/mathlive.js",
+  "module": "./dist/mathlive.mjs",
   "exports": {
-    "import": "./dist/mathlive.min.mjs",
-    "require": "./dist/mathlive.min.js"
+    "import": "./dist/mathlive.mjs",
+    "require": "./dist/mathlive.js"
   },
   "types": "./dist/public/mathlive.d.ts",
   "files": [
