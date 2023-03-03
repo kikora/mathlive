@@ -204,30 +204,35 @@ export function onKeystroke(
       );
     }
 
-    // 4.4 Handle the return/enter key
-    if (!selector && (keystroke === '[Enter]' || keystroke === '[Return]')) {
-      let result = false;
-      if (contentWillChange(model, { inputType: 'insertLineBreak' })) {
-        // No matching keybinding: trigger a commit
+    /**
+     * Kikora MODIFICATION: In Safari inputType is always empty, so this can not
+     * be used to detect Enter keypress. So we disable this code to allow
+     * keydown events to trigger on Enter keypress
+     */
+    // // 4.4 Handle the return/enter key
+    // if (!selector && (keystroke === '[Enter]' || keystroke === '[Return]')) {
+    //   let result = false;
+    //   if (contentWillChange(model, { inputType: 'insertLineBreak' })) {
+    //     // No matching keybinding: trigger a commit
 
-        if (mathfield.host) {
-          result = !mathfield.host.dispatchEvent(
-            new Event('change', { bubbles: true, composed: true })
-          );
-        }
+    //     if (mathfield.host) {
+    //       result = !mathfield.host.dispatchEvent(
+    //         new Event('change', { bubbles: true, composed: true })
+    //       );
+    //     }
 
-        if (!result) {
-          if (evt.preventDefault) {
-            evt.preventDefault();
-            evt.stopPropagation();
-          }
-        }
+    //     if (!result) {
+    //       if (evt.preventDefault) {
+    //         evt.preventDefault();
+    //         evt.stopPropagation();
+    //       }
+    //     }
 
-        // Dispatch an 'input' event matching the behavior of `<textarea>`
-        contentDidChange(model, { inputType: 'insertLineBreak' });
-      }
-      return result;
-    }
+    //     // Dispatch an 'input' event matching the behavior of `<textarea>`
+    //     contentDidChange(model, { inputType: 'insertLineBreak' });
+    //   }
+    //   return result;
+    // }
 
     if (mathfield.mode === 'math') {
       //

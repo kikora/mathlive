@@ -1,6 +1,6 @@
 {
-  "name": "mathlive",
-  "version": "0.89.4",
+  "name": "@kikora/mathlive",
+  "version": "0.89.4-kikora.0",
   "description": "A web component for math input",
   "license": "MIT",
   "funding": {
@@ -9,9 +9,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/arnog/mathlive.git"
+    "url": "https://github.com/kikora/mathlive.git"
   },
-  "bugs": "https://github.com/arnog/mathlive/issues/",
+  "bugs": "https://github.com/kikora/mathlive/issues/",
   "scripts": {
     "build": "bash ./scripts/build.sh",
     "clean": "bash ./scripts/clean.sh",
@@ -20,14 +20,13 @@
     "prepare": "bash ./scripts/build.sh production",
     "start": "bash ./scripts/start.sh",
     "test": "bash ./scripts/test.sh",
-    "version": "bash ./scripts/version.sh",
-    "postversion": "bash ./scripts/github-release.sh"
+    "watch": "bash ./scripts/watch.sh"
   },
-  "main": "./dist/mathlive.min.js",
-  "module": "./dist/mathlive.min.mjs",
+  "main": "./dist/mathlive.js",
+  "module": "./dist/mathlive.mjs",
   "exports": {
-    "import": "./dist/mathlive.min.mjs",
-    "require": "./dist/mathlive.min.js"
+    "import": "./dist/mathlive.mjs",
+    "require": "./dist/mathlive.js"
   },
   "types": "./dist/public/mathlive.d.ts",
   "files": [

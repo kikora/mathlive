@@ -8,6 +8,8 @@ import { AnnounceVerb } from '../editor-model/utils';
 
 import { speakableText } from './speech';
 
+/* Kikora MODIFICATION: We have translated the text for aria-live when navigating in the expression */
+
 /**
  * Given an atom, describe the relationship between the atom
  * and its siblings and their parent.
@@ -18,25 +20,25 @@ function relationName(atom: Atom): string {
     if (atom.treeBranch === 'body') result = 'prompt';
   } else if (atom.treeBranch === 'body') {
     result = {
-      enclose: 'cross out',
-      leftright: 'delimiter',
-      surd: 'square root',
-      root: 'math field',
-      mop: 'operator', // E.g. `\operatorname`, a `mop` with a body
-      first: 'first',
+      enclose: 'krysse ut',
+      leftright: 'skilletegn',
+      surd: 'kvadratrot',
+      root: 'mattefelt',
+      mop: 'operatør', // E.g. `\operatorname`, a `mop` with a body
+      first: 'først',
     }[atom.type];
   } else if (atom.parent!.type === 'genfrac') {
-    if (atom.treeBranch === 'above') return 'numerator';
+    if (atom.treeBranch === 'above') return 'teller';
 
-    if (atom.treeBranch === 'below') return 'denominator';
+    if (atom.treeBranch === 'below') return 'nevner';
   } else if (atom.parent!.type === 'surd') {
-    if (atom.treeBranch === 'above') result = 'index';
-  } else if (atom.treeBranch === 'superscript') result = 'superscript';
-  else if (atom.treeBranch === 'subscript') result = 'subscript';
+    if (atom.treeBranch === 'above') result = 'indeks';
+  } else if (atom.treeBranch === 'superscript') result = 'opphøyd';
+  else if (atom.treeBranch === 'subscript') result = 'underskrift';
 
   if (!result) console.log('unknown relationship');
 
-  return result ?? 'parent';
+  return result ?? 'gruppe';
 }
 
 /**
@@ -62,7 +64,7 @@ export function defaultAnnounceHook(
     // As a side effect, reset the keystroke buffer
     mathfield.flushInlineShortcutBuffer();
   } else if (action === 'delete')
-    liveText = speakableText(mathfield.options, 'deleted: ', atoms!);
+    liveText = speakableText(mathfield.options, 'slettet: ', atoms!);
   //* ** FIX: could also be moveUp or moveDown -- do something different like provide context???
   else if (action === 'focus' || action.includes('move')) {
     //* ** FIX -- should be xxx selected/unselected */
@@ -126,7 +128,7 @@ function getRelationshipAsSpokenText(
   let ancestor = previous.parent;
   const newParent = model.at(model.position).parent;
   while (ancestor !== model.root && ancestor !== newParent) {
-    result += `out of ${relationName(ancestor!)};`;
+    result += `ute av ${relationName(ancestor!)};`;
     ancestor = ancestor!.parent;
   }
 
@@ -152,12 +154,12 @@ function getNextAtomAsSpokenText(
   const cursor = model.at(model.position);
   const relation = relationName(cursor);
   if (cursor.isFirstSibling)
-    result = (relation ? 'start of ' + relation : 'unknown') + ': ';
+    result = (relation ? 'start ' + relation : 'unknown') + ': ';
 
   if (cursor.isLastSibling) {
     // Don't say both start and end
     if (!cursor.isFirstSibling)
-      result += relation ? 'end of ' + relation : 'unknown';
+      result += relation ? 'slutt ' + relation : 'unknown';
   } else result += speakableText(options, '', cursor);
 
   return result;
