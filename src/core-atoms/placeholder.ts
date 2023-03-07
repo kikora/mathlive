@@ -3,10 +3,8 @@ import { ParseMode, Style } from '../public/core';
 import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
 import { Box } from '../core/box';
 import { Context, GlobalContext } from '../core/context';
-import { PromptAtom } from './prompt';
 
 export class PlaceholderAtom extends Atom {
-  readonly placeholderId?: string;
   readonly defaultValue?: Atom[];
   constructor(
     context: GlobalContext,
@@ -26,7 +24,6 @@ export class PlaceholderAtom extends Atom {
       command: '\\placeholder',
     });
     this.captureSelection = true;
-    this.placeholderId = options?.placeholderId;
   }
 
   static fromJson(json: AtomJson, context: GlobalContext): PlaceholderAtom {
@@ -35,7 +32,6 @@ export class PlaceholderAtom extends Atom {
 
   toJson(): AtomJson {
     const result = super.toJson();
-    if (this.placeholderId) result.placeholderId = this.placeholderId;
     if (this.value === this.context.placeholderSymbol) delete result.value;
     if (this.defaultValue)
       result.defaultValue = this.defaultValue.map((x) => x.toJson());
@@ -53,9 +49,9 @@ export class PlaceholderAtom extends Atom {
     return this.createBox(context, { classes });
   }
 
-  serialize(options: ToLatexOptions): string {
+  serialize(_options: ToLatexOptions): string {
     let value = this.value;
     if (value === this.context.placeholderSymbol) value = '';
-    return `\\placeholder{${this.value ?? ''}}`;
+    return `\\placeholder{${this.value}}`;
   }
 }

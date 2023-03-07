@@ -1,25 +1,25 @@
-import {
-  get as getOptions,
-  getDefault as getDefaultOptions,
-  update as updateOptions,
-} from '../editor/options';
-import { MathfieldPrivate } from '../editor-mathfield/mathfield-private';
-import { offsetFromPoint } from '../editor-mathfield/pointer-input';
-import { isOffset, isRange, isSelection } from '../editor/model';
-import { isBrowser } from '../common/capabilities';
-
 import { Selector } from './commands';
 import { LatexSyntaxError, ParseMode, Style } from './core';
 import {
-  Mathfield,
   InsertOptions,
   OutputFormat,
   Offset,
   Range,
   Selection,
+  Mathfield,
 } from './mathfield';
 import { MathfieldOptions } from './options';
+
+import {
+  get as getOptions,
+  getDefault as getDefaultOptions,
+  update as updateOptions,
+} from '../editor/options';
+import { isOffset, isRange, isSelection } from '../editor/model';
+import { MathfieldPrivate } from '../editor-mathfield/mathfield-private';
+import { offsetFromPoint } from '../editor-mathfield/pointer-input';
 import { getAtomBounds } from '../editor-mathfield/utils';
+import { isBrowser } from '../common/capabilities';
 
 export declare type Expression =
   | number
@@ -96,16 +96,8 @@ export type MoveOutEvent = {
   direction: 'forward' | 'backward' | 'upward' | 'downward';
 };
 
-/**  The `placeholder-change` event signals that an editable placeholder inside
- * a read-only mathfield has been modified. The `placeholderId` property
- * indicates which placeholder was changed.
- */
-export type PlaceholderChange = {
-  placeholderId: string;
-};
-
 /**
- * See documentation for the `virtual-keyboard-mode` option.
+ * See documentation for the `virtual-keyboard-mode` attribute.
  */
 export type VirtualKeyboardMode = 'auto' | 'manual' | 'onfocus' | 'off';
 
@@ -119,7 +111,6 @@ declare global {
     'mode-change': Event;
     'mount': Event;
     'move-out': CustomEvent<MoveOutEvent>;
-    'placeholder-change': CustomEvent<PlaceholderChange>;
     'unmount': Event;
     'read-aloud-status-change': Event;
     'selection-change': Event;
@@ -145,7 +136,6 @@ if (MATHFIELD_TEMPLATE) {
   outline: Highlight auto 1px;    /* For Firefox */
   outline: -webkit-focus-ring-color auto 1px;
 }
-:host([promptmode]), :host([prompt-mode]) { outline: none;}
 :host([readonly]), :host([read-only]) { outline: none; }
 </style>
 <div></div><slot style="display:none"></slot>`;
@@ -478,20 +468,21 @@ export interface MathfieldElementAttributes {
  *  getElementById('mf').setOptions({horizontalSpacingScale: 1.1});
  * ```
  *
- * The values of attributes and properties are reflected, which means you can change one or the
- * other, for example:
+ * The values of attributes and properties are reflected, which means you can
+ * change one or the other, for example:
  *
  * ```javascript
  * getElementById('mf').setAttribute('virtual-keyboard-mode',  'manual');
- * console.log(getElementById('mf').getOption('virtualKeyboardMode'));
+ * console.log(getElementById('mf').virtualKeyboardMode);
  * // Result: "manual"
- * getElementById('mf').setOptions({virtualKeyboardMode: 'onfocus');
+ * getElementById('mf').virtualKeyboardMode ='auto;
  * console.log(getElementById('mf').getAttribute('virtual-keyboard-mode');
- * // Result: 'onfocus'
+ * // Result: 'auto'
  * ```
  *
  * An exception is the `value` property, which is not reflected on the `value`
- * attribute: the `value` attribute remains at its initial value.
+ * attribute: for consistency with other DOM elements, the `value` attribute
+ * remains at its initial value.
  *
  *
  * <div class='symbols-table' style='--first-col-width:32ex'>
@@ -522,8 +513,7 @@ export interface MathfieldElementAttributes {
  * | `text-to-speech-rules` | `options.textToSpeechRules` |
  * | `value` | `value` |
  * | `virtual-keyboard-layout` | `options.virtualKeyboardLayout` |
- * | `virtual-keyboard-mode` | `options.virtualKeyboardMode` |
- * | `virtual-keyboard-theme` | `options.virtualKeyboardTheme` |
+ * | `virtual-keyboard-mode` | `virtualKeyboardMode` |
  * | `virtual-keyboards` | `options.virtualKeyboards` |
  *
  * </div>
@@ -738,11 +728,11 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
   }
 
   getPromptContent(placeholderId: string): string {
-    return this._mathfield?.getPromptContent(placeholderId)!;
+    return this._mathfield?.getPromptContent(placeholderId) ?? '';
   }
 
   get prompts(): string[] {
-    return this._mathfield?.prompts!;
+    return this._mathfield?.prompts ?? [];
   }
 
   addEventListener<K extends keyof HTMLElementEventMap>(
@@ -866,9 +856,8 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
    *  @category Options
    */
   setOptions(options: Partial<MathfieldOptions>): void {
-    if (this._mathfield) {
-      this._mathfield.setOptions(options);
-    } else if (gDeferredState.has(this)) {
+    if (this._mathfield) this._mathfield.setOptions(options);
+    else if (gDeferredState.has(this)) {
       const mergedOptions = {
         ...gDeferredState.get(this)!.options,
         ...options,
@@ -1482,13 +1471,13 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
   setPromptCorrectness(
     id: string,
     correctness: 'correct' | 'incorrect' | undefined
-  ) {
+  ): void {
     this._mathfield?.setPromptCorrectness(id, correctness);
   }
-  setPromptContent(id: string, content: string) {
+  setPromptContent(id: string, content: string): void {
     this._mathfield?.setPromptContent(id, content);
   }
-  setPromptLocked(id: string, locked: boolean) {
+  setPromptLocked(id: string, locked: boolean): void {
     this._mathfield?.setPromptLocked(id, locked);
   }
   get smartSuperscript(): boolean {
@@ -1548,12 +1537,6 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
   }
   set virtualKeyboardMode(value: VirtualKeyboardMode) {
     this.setOptions({ virtualKeyboardMode: value });
-  }
-  get virtualKeyboardTheme(): 'material' | 'apple' | '' {
-    return this.getOption('virtualKeyboardTheme');
-  }
-  set virtualKeyboardTheme(value: 'material' | 'apple' | '') {
-    this.setOptions({ virtualKeyboardTheme: value });
   }
   get virtualKeyboards(): string {
     return this.getOption('virtualKeyboards');
