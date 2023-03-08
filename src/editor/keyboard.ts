@@ -460,7 +460,6 @@ export function delegateKeyboardEvents(
 }
 
 function deepActiveElement(): Element | null {
-  if (!isBrowser()) return null;
   let a = document.activeElement;
   while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
 
