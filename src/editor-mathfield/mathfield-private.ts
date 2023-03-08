@@ -275,9 +275,8 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     if (isTouchCapable())
       markup += `<span class=ML__textarea__textarea tabindex=-1 role=textbox></span>`;
     else {
-      markup += `<textarea class=ML__textarea__textarea autocapitalize=off autocomplete=off autocorrect=off spellcheck=false inputmode=none aria-hidden="true" tabindex="${
-        element.tabIndex ?? 0
-      }"></textarea>`;
+      markup += `<textarea class=ML__textarea__textarea autocapitalize=off autocomplete=off 
+      autocorrect=off spellcheck=false inputmode=none aria-hidden="true tabindex=0></textarea>`;
     }
     markup += '</span>';
 

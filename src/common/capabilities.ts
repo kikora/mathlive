@@ -14,12 +14,10 @@ export function throwIfNotInBrowser(): void {
 }
 
 export function isTouchCapable(): boolean {
-  /* Kikora MODIFICATION: NVDA/JAWS does not work when not on a touch device, so pretend all is touch devices */
-  // if (!isBrowser()) return false;
-  // if ('matchMedia' in globalThis)
-  //   return globalThis.matchMedia('(any-pointer: coarse)').matches;
-  // return 'ontouchstart' in globalThis || navigator.maxTouchPoints > 0;
-  return true;
+  if (!isBrowser()) return false;
+  if ('matchMedia' in globalThis)
+    return globalThis.matchMedia('(any-pointer: coarse)').matches;
+  return 'ontouchstart' in globalThis || navigator.maxTouchPoints > 0;
 }
 
 export function canVibrate(): boolean {
