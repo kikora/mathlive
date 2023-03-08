@@ -276,7 +276,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
       markup += `<span class=ML__textarea__textarea tabindex=-1 role=textbox></span>`;
     else {
       markup += `<textarea class=ML__textarea__textarea autocapitalize=off autocomplete=off 
-      autocorrect=off spellcheck=false inputmode=none aria-hidden=true tabindex=0></textarea>`;
+      autocorrect=off spellcheck=false inputmode=none aria-hidden=true aria-multiline=false tabindex=0></textarea>`;
     }
     markup += '</span>';
 
