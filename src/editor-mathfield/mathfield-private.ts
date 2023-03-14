@@ -157,7 +157,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   fieldContent: HTMLElement;
   private virtualKeyboardToggle: HTMLElement;
   readonly ariaLiveText: HTMLElement;
-  readonly accessibleMathML: HTMLElement;
+  // readonly accessibleMathML: HTMLElement;
 
   atomBoundsCache?: Map<string, Rect>;
 
@@ -242,9 +242,9 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     // Additional elements used for UI.
     const markup: string[] = [];
 
-    const accessibleNodeID =
-      Date.now().toString(36).slice(-2) +
-      Math.floor(Math.random() * 0x186a0).toString(36);
+    // const accessibleNodeID =
+    //   Date.now().toString(36).slice(-2) +
+    //   Math.floor(Math.random() * 0x186a0).toString(36);
     // Add "aria-labelledby="${accessibleNodeID}"" to the keyboard sink
 
     // 1/ The keyboard event capture element.
@@ -278,9 +278,9 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
       '<span role=status aria-live=assertive aria-atomic=true></span>'
     );
 
-    markup.push(
-      `<span class=accessibleMathML id="${accessibleNodeID}"></span>`
-    );
+    // markup.push(
+    //   `<span class=accessibleMathML id="${accessibleNodeID}"></span>`
+    // );
     markup.push('</div>');
 
     this.element.innerHTML = window.MathfieldElement.createHTML(
@@ -332,7 +332,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     );
 
     this.ariaLiveText = this.element.querySelector('[role=status]')!;
-    this.accessibleMathML = this.element.querySelector('.accessibleMathML')!;
+    // this.accessibleMathML = this.element.querySelector('.accessibleMathML')!;
 
     // The keystroke caption panel and the popover are initially hidden
     this.keystrokeCaptionVisible = false;
