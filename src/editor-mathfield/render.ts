@@ -12,6 +12,7 @@ import type { MathfieldPrivate } from './mathfield-private';
 import { Atom, Context, DEFAULT_FONT_SIZE } from '../core/core';
 import { updatePopoverPosition } from '../editor/popover';
 import { gFontsState } from 'core/fonts';
+import { toMathML } from '../addons/math-ml';
 
 /*
  * Return a hash (32-bit integer) representing the content of the mathfield
@@ -176,11 +177,11 @@ export function render(
   )[0]! as HTMLElement;
 
   // NVA tries (and fails) to read MathML, so skip it for now
-  // mathfield.accessibleMathML.innerHTML = mathfield.options.createHTML(
-  //   '<math xmlns="http://www.w3.org/1998/Math/MathML">' +
-  //     toMathML(model.root, mathfield.options) +
-  //     '</math>'
-  // );
+  mathfield.accessibleMathML.innerHTML = window.MathfieldElement.createHTML(
+    '<math xmlns="http://www.w3.org/1998/Math/MathML">' +
+      toMathML(model.root, mathfield.options) +
+      '</math>'
+  );
 
   //
   // 4. Render the selection/caret
