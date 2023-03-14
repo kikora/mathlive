@@ -84,8 +84,9 @@ export function defaultAnnounceHook(
     //         atomsToMathML(mathfield.model.root, mathfield.options) +
     //         '</math>'
     // );
-    // const label = speakableText(mathfield.options, '', mathfield.model.root);
+    const label = speakableText(mathfield.options, '', mathfield.model.root);
     // mathfield.keyboardDelegate.setAriaLabel(label);
+    liveText = label;
     /** * FIX -- testing hack for setting braille ***/
     // mathfield.accessibleMathML.focus();
     // console.log("before sleep");
