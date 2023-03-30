@@ -18,7 +18,7 @@ export function showKeystroke(
   mathfield: MathfieldPrivate,
   keystroke: string
 ): void {
-  if (mathfield.promptSelectionLocked || !mathfield.keystrokeCaptionVisible)
+  if (!mathfield.isSelectionEditable || !mathfield.keystrokeCaptionVisible)
     return;
 
   const vb = createKeystrokeCaption(mathfield);
@@ -26,7 +26,7 @@ export function showKeystroke(
   const bounds = mathfield.element!.getBoundingClientRect();
   vb.style.left = `${bounds.left}px`;
   vb.style.top = `${bounds.top - 64}px`;
-  vb.innerHTML = mathfield.options.createHTML(
+  vb.innerHTML = window.MathfieldElement.createHTML(
     '<span>' +
       (getKeybindingMarkup(keystroke) || keystroke) +
       '</span>' +

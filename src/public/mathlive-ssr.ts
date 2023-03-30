@@ -1,3 +1,5 @@
+/// <reference path="./cortex-compute-engine.d.ts" />
+
 /**
  * Server-side rendering exports.
  *
@@ -6,24 +8,28 @@
  *
  */
 
-import { ComputeEngine, SemiBoxedExpression } from '@cortex-js/compute-engine';
+import { Atom } from '../core/atom-class';
+
+import type {
+  ComputeEngine,
+  SemiBoxedExpression,
+} from '@cortex-js/compute-engine';
 import { toMathML } from '../addons/math-ml';
-import { Atom } from '../core/atom';
 import { Box, adjustInterAtomSpacing, coalesce, makeStruts } from '../core/box';
 import { Context } from '../core/context';
 import { DEFAULT_FONT_SIZE } from '../core/font-metrics';
 import { parseLatex } from '../core/parser';
 import { atomToSpeakableText } from '../editor/atom-to-speakable-text';
-import { LatexSyntaxError, ParseMode } from './core';
 import { Expression } from './mathfield-element';
-import { TextToSpeechOptions } from './options';
 import { validateLatex as validateLatexInternal } from '../core/parser';
-import { defaultGlobalContext } from '../core/context-utils';
 
 import { atomToAsciiMath } from '../editor/atom-to-ascii-math';
 import { parseMathString } from '../editor/parse-math-string';
 
+import type { LatexSyntaxError, ParseMode } from './core-types';
+
 import '../core/modes';
+import { defaultGlobalContext } from '../core/context-utils';
 
 /**
  * Convert a LaTeX string to a string of HTML markup.
@@ -71,13 +77,13 @@ export function convertLatexToMarkup(
   options = options ?? {};
   options.mathstyle = options.mathstyle ?? 'displaystyle';
 
-  const context = defaultGlobalContext();
+  const globalContext = defaultGlobalContext();
 
   //
   // 1. Parse the formula and return a tree of atoms, e.g. 'genfrac'.
   //
-  const root = new Atom('root', context);
-  root.body = parseLatex(text, context, {
+  const root = new Atom('root', globalContext);
+  root.body = parseLatex(text, globalContext, {
     parseMode: 'math',
     mathstyle: options.mathstyle,
   });
@@ -86,26 +92,25 @@ export function convertLatexToMarkup(
   // 2. Transform the math atoms into elementary boxes
   // for example from genfrac to VBox.
   //
-  const box = root.render(
-    new Context(
-      {
-        registers: context.registers,
-        renderPlaceholder: () => new Box(0xa0, { maxFontSize: 1.0 }),
-      },
-      {
-        fontSize: DEFAULT_FONT_SIZE,
-        letterShapeStyle: context.letterShapeStyle,
-      },
-      options.mathstyle
-    )
+  const context = new Context(
+    {
+      registers: globalContext.registers,
+      renderPlaceholder: () => new Box(0xa0, { maxFontSize: 1.0 }),
+    },
+    {
+      fontSize: DEFAULT_FONT_SIZE,
+      letterShapeStyle: globalContext.letterShapeStyle,
+    },
+    options.mathstyle
   );
+  const box = root.render(context);
 
   if (!box) return '';
 
   //
   // 3. Adjust to `mord` according to TeX spacing rules
   //
-  adjustInterAtomSpacing(box);
+  adjustInterAtomSpacing(box, context);
 
   //
   // 2. Simplify by coalescing adjacent boxes
@@ -164,8 +169,6 @@ export function convertLatexToMathMl(
  * @param latex A string of valid LaTeX. It does not have to start
  * with a mode token such as a `$$` or `\(`.
  *
- * @param options {@inheritDoc TextToSpeechOptions}
- *
  * @return The spoken representation of the input LaTeX.
  * @example
  * console.log(convertLatexToSpeakableText('\\frac{1}{2}'));
@@ -173,16 +176,13 @@ export function convertLatexToMathMl(
  * @category Converting
  * @keywords convert, latex, speech, speakable, text, speakable text
  */
-export function convertLatexToSpeakableText(
-  latex: string,
-  options: Partial<TextToSpeechOptions> = {}
-): string {
+export function convertLatexToSpeakableText(latex: string): string {
   const atoms = parseLatex(latex, defaultGlobalContext(), {
     parseMode: 'math',
     mathstyle: 'displaystyle',
   });
 
-  return atomToSpeakableText(atoms, options as Required<TextToSpeechOptions>);
+  return atomToSpeakableText(atoms);
 }
 
 let gComputeEngine: ComputeEngine;
@@ -195,7 +195,11 @@ export function serializeMathJsonToLatex(json: Expression): string {
     if (ComputeEngineCtor) gComputeEngine = new ComputeEngineCtor();
     else {
       console.error(
-        'MathLive: The CortexJS Compute Engine library is not available.\nLoad the library, for example with:\nimport "https://unpkg.com/@cortex-js/compute-engine?module"'
+        `MathLive {{SDK_VERSION}}: The CortexJS Compute Engine library is not available.
+        
+        Load the library, for example with:
+        
+        import "https://unpkg.com/@cortex-js/compute-engine?module"`
       );
     }
   }

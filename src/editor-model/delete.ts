@@ -328,7 +328,7 @@ function onDelete(
  * Delete the item at the current position
  */
 export function deleteBackward(model: ModelPrivate): boolean {
-  if (model.mathfield.promptSelectionLocked) return false;
+  if (!model.mathfield.isSelectionEditable) return false;
 
   if (!contentWillChange(model, { inputType: 'deleteContentBackward' }))
     return false;
@@ -368,6 +368,8 @@ export function deleteBackward(model: ModelPrivate): boolean {
  * send notifications
  */
 export function deleteForward(model: ModelPrivate): boolean {
+  if (!model.mathfield.isSelectionEditable) return false;
+
   if (!contentWillChange(model, { inputType: 'deleteContentForward' }))
     return false;
   if (!model.selectionIsCollapsed)
@@ -441,12 +443,8 @@ export function deleteRange(
     // (for example for surd/\sqrt)
     if (firstSelected === firstChild && lastSelected === lastChild) {
       const parent = result[0].parent!;
-      if (parent.type !== 'root' && parent.type !== 'prompt') {
-        range = [
-          model.offsetOf(parent.leftSibling),
-          model.offsetOf(parent.rightSibling),
-        ];
-      }
+      if (parent.type !== 'root' && parent.type !== 'prompt')
+        range = [model.offsetOf(parent.leftSibling), model.offsetOf(parent)];
     }
 
     // If we have a placeholder denominator selected,

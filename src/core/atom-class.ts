@@ -1,18 +1,21 @@
-import type { Style, ParseMode, FontSize } from '../public/core';
-import '../public/mathfield-element';
-
 import { isArray } from '../common/types';
 
-import { unicodeCharToLatex } from '../core-definitions/definitions-utils';
-
-import { GlobalContext, Context, PrivateStyle } from './context';
+import type { ParseMode, Style, FontSize } from '../public/core-types';
+import type { GlobalContext } from 'core/types';
 
 import { PT_PER_EM, X_HEIGHT } from './font-metrics';
-import { BoxType, isBoxType, Box } from './box';
+import { isBoxType, Box } from './box';
 import { makeLimitsStack, VBox } from './v-box';
 import { joinLatex } from './tokenizer';
 import { getModeRuns, getPropertyRuns, Mode } from './modes-utils';
-import { PromptAtom } from 'core-atoms/prompt';
+import { unicodeCharToLatex } from '../core-definitions/definitions-utils';
+
+import { Context } from './context';
+import { PrivateStyle, BoxType } from './types';
+
+const gCustomSerializer: {
+  [command: string]: (atom: Atom, options: ToLatexOptions) => string;
+} = {};
 
 /**
  * This data type is used as a serialized representation of the  atom tree.
@@ -268,13 +271,9 @@ export class Atom {
     this.displayContainsHighlight = options?.displayContainsHighlight ?? false;
     if (options?.serialize) {
       console.assert(typeof options.command === 'string');
-      Atom.customSerializer[options.command!] = options.serialize;
+      gCustomSerializer[options.command!] = options.serialize;
     }
   }
-
-  private static customSerializer: {
-    [command: string]: (atom: Atom, options: ToLatexOptions) => string;
-  } = {};
 
   /**
    * Return a list of boxes equivalent to atoms.
@@ -372,8 +371,8 @@ export class Atom {
     if (!options.expandMacro && typeof value.verbatimLatex === 'string')
       return value.verbatimLatex;
 
-    if (value.command && Atom.customSerializer[value.command])
-      return Atom.customSerializer[value.command](value, options);
+    if (value.command && gCustomSerializer[value.command])
+      return gCustomSerializer[value.command](value, options);
 
     return value.serialize(options);
   }
@@ -555,35 +554,24 @@ export class Atom {
   }
 
   get inCaptureSelection(): boolean {
-    let result = false;
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     let atom: Atom | undefined = this;
     while (atom) {
-      if (atom.captureSelection) {
-        result = true;
-        break;
-      }
+      if (atom.captureSelection) return true;
       atom = atom.parent;
     }
-    return result;
+    return false;
   }
 
-  /** Returns true if atom is *WITHIN* an ID'd placeholder atom that is not correct/incorrect */
-  get inEditablePrompt(): boolean {
-    let result = false;
+  /** Return the parent editable prompt, if it exists */
+  get parentPrompt(): Atom | null {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     let atom: Atom | undefined = this;
     while (atom) {
-      if (
-        atom.parent?.type === 'prompt' &&
-        !(atom.parent as PromptAtom).captureSelection
-      ) {
-        result = true;
-        break;
-      }
+      if (atom.type === 'prompt' && !atom.captureSelection) return atom;
       atom = atom.parent;
     }
-    return result;
+    return null;
   }
 
   /**

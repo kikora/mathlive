@@ -1,5 +1,4 @@
 /* eslint-disable no-new */
-import { Style } from '../public/core';
 
 import { TextAtom } from '../core-atoms/text';
 
@@ -7,7 +6,8 @@ import { Atom, ToLatexOptions } from './atom';
 import { Box } from './box';
 import { Mode, getPropertyRuns } from './modes-utils';
 import { joinLatex } from './tokenizer';
-import { GlobalContext } from './context';
+import type { Style } from '../public/core-types';
+import type { GlobalContext } from 'core/types';
 
 function join(segments: [string, boolean][]): [string, boolean] {
   return [

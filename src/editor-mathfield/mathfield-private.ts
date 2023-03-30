@@ -1,17 +1,10 @@
-import { BoxedExpression, ComputeEngine } from '@cortex-js/compute-engine';
+import type { BoxedExpression } from '@cortex-js/compute-engine';
 
 // @ts-ignore-error
 import MATHFIELD_STYLESHEET from '../../css/mathfield.less';
 // @ts-ignore-error
 import CORE_STYLESHEET from '../../css/core.less';
 
-import type {
-  MacroDefinition,
-  LatexSyntaxError,
-  ParseMode,
-  Registers,
-  Style,
-} from '../public/core';
 import type { Keybinding, KeyboardLayoutName } from '../public/options';
 import type {
   Mathfield,
@@ -21,20 +14,19 @@ import type {
   Range,
   Selection,
   ApplyStyleOptions,
-  VirtualKeyboardInterface,
 } from '../public/mathfield';
 
-import { canVibrate, isTouchCapable } from '../common/capabilities';
+import { canVibrate } from '../common/capabilities';
 import { hashCode } from '../common/hash-code';
 import { Stylesheet, inject as injectStylesheet } from '../common/stylesheet';
 
 import { Atom } from '../core/atom-class';
-import { loadFonts } from '../core/fonts';
-import { GlobalContext } from '../core/context';
+import { gFontsState } from '../core/fonts';
 import { defaultBackgroundColorMap, defaultColorMap } from '../core/color';
 import {
-  NormalizedMacroDictionary,
   TokenDefinition,
+  defaultGetDefinition,
+  getMacroDefinition,
 } from '../core-definitions/definitions-utils';
 import { LatexGroupAtom } from '../core-atoms/latex';
 import { parseLatex, validateLatex } from '../core/parser';
@@ -60,7 +52,7 @@ import { addRowAfter, addColumnAfter } from '../editor-model/array';
 import { delegateKeyboardEvents, KeyboardDelegate } from '../editor/keyboard';
 import { UndoManager } from '../editor/undo';
 import { disposePopover, updatePopoverPosition } from '../editor/popover';
-import { localize } from '../core/l10n';
+import { l10n, localize } from '../core/l10n';
 import {
   HAPTIC_FEEDBACK_DURATION,
   SelectorPrivate,
@@ -73,7 +65,6 @@ import {
   getDefault as getDefaultOptions,
   get as getOptions,
   effectiveMode,
-  DEFAULT_KEYBOARD_TOGGLE_GLYPH,
 } from '../editor/options';
 import { normalizeKeybindings } from '../editor/keybindings';
 import {
@@ -82,21 +73,25 @@ import {
   DEFAULT_KEYBOARD_LAYOUT,
   gKeyboardLayout,
 } from '../editor/keyboard-layout';
-import { VirtualKeyboard } from '../editor/virtual-keyboard';
 import { ModelState } from '../editor-model/model-private';
 
 import { onInput, onKeystroke } from './keyboard-input';
 import { complete } from './autocomplete';
-import { requestUpdate, render } from './render';
+import {
+  requestUpdate,
+  render,
+  renderSelection,
+  contentMarkup,
+} from './render';
 
 import './commands';
 import './styling';
-
 import {
   getCaretPoint,
   getSelectionBounds,
   isValidMathfield,
   Rect,
+  validateOrigin,
 } from './utils';
 
 import { attachButtonHandlers } from './buttons';
@@ -107,20 +102,29 @@ import { getLatexGroupBody } from './mode-editor-latex';
 import './mode-editor-math';
 import './mode-editor-text';
 
-import { VirtualKeyboardDelegate } from './remote-virtual-keyboard';
 import { validateStyle } from './styling';
 import { disposeKeystrokeCaption } from './keystroke-caption';
-import {
-  defaultGetDefinition,
-  getMacroDefinition,
-} from '../core/context-utils';
-import { globalMathLive } from '../mathlive';
-import { resolveUrl } from '../common/script-url';
-import { PromptAtom } from 'core-atoms/prompt';
+import { PromptAtom } from '../core-atoms/prompt';
+import { isVirtualKeyboardMessage } from '../virtual-keyboard/proxy';
+import '../public/mathfield-element';
+
+import '../virtual-keyboard/global';
+
+import type {
+  ParseMode,
+  Style,
+  NormalizedMacroDictionary,
+  Registers,
+  MacroDefinition,
+  LatexSyntaxError,
+} from '../public/core-types';
+import type { GlobalContext } from '../core/types';
+import { makeProxy } from '../virtual-keyboard/mathfield-proxy';
 
 let CORE_STYLESHEET_HASH: string | undefined = undefined;
 let MATHFIELD_STYLESHEET_HASH: string | undefined = undefined;
-const AUDIO_FEEDBACK_VOLUME = 0.5; // From 0.0 to 1.0
+
+const DEFAULT_KEYBOARD_TOGGLE_GLYPH = `<svg style="width: 21px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path d="M528 64H48C21.49 64 0 85.49 0 112v288c0 26.51 21.49 48 48 48h480c26.51 0 48-21.49 48-48V112c0-26.51-21.49-48-48-48zm16 336c0 8.823-7.177 16-16 16H48c-8.823 0-16-7.177-16-16V112c0-8.823 7.177-16 16-16h480c8.823 0 16 7.177 16 16v288zM168 268v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm-336 80v-24c0-6.627-5.373-12-12-12H84c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm384 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zM120 188v-24c0-6.627-5.373-12-12-12H84c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm-96 152v-8c0-6.627-5.373-12-12-12H180c-6.627 0-12 5.373-12 12v8c0 6.627 5.373 12 12 12h216c6.627 0 12-5.373 12-12z"/></svg>`;
 
 /** @internal */
 export class MathfieldPrivate implements GlobalContext, Mathfield {
@@ -139,8 +143,6 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   dirty: boolean; // If true, need to be redrawn
   smartModeSuppressed: boolean;
 
-  private _computeEngine: ComputeEngine;
-
   readonly element:
     | (HTMLElement & {
         mathfield?: MathfieldPrivate;
@@ -152,7 +154,6 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
 
   readonly field: HTMLElement;
   fieldContent: HTMLElement;
-  private virtualKeyboardToggle: HTMLElement;
   readonly ariaLiveText: HTMLElement;
   // readonly accessibleMathML: HTMLElement;
 
@@ -166,7 +167,6 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   keystrokeCaptionVisible: boolean;
 
   readonly keyboardDelegate: KeyboardDelegate;
-  private _virtualKeyboard?: VirtualKeyboardInterface;
 
   _keybindings?: Keybinding[]; // Normalized keybindings (raw ones in config)
   keyboardLayout: KeyboardLayoutName;
@@ -189,8 +189,8 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   private readonly stylesheets: (null | Stylesheet)[] = [];
   private resizeTimer: ReturnType<typeof requestAnimationFrame>;
 
-  private audioBuffers: { [key: string]: AudioBuffer } = {};
-  private _audioContext: AudioContext;
+  /** When true, the mathfield is listening to the virtual keyboard */
+  private connectedToVirtualKeyboard: boolean;
 
   /**
    *
@@ -214,34 +214,15 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     // Setup default config options
     this.options = updateOptions(
       { ...getDefaultOptions(), registers: getDefaultRegisters(this) },
-      options.readOnly
-        ? { ...options, virtualKeyboardMode: 'off' }
-        : {
-            plonkSound: 'plonk.wav',
-            keypressSound: {
-              spacebar: 'keypress-spacebar.wav',
-              return: 'keypress-return.wav',
-              delete: 'keypress-delete.wav',
-              default: 'keypress-standard.wav',
-            },
-            ...options,
-          }
+      options
     );
-
-    if (this.options.virtualKeyboardMode === 'auto')
-      this.options.virtualKeyboardMode = isTouchCapable() ? 'onfocus' : 'off';
-
-    if (this.options.computeEngine !== undefined)
-      this._computeEngine = options.computeEngine;
 
     if (options.eventSink) this.host = options.eventSink;
 
     this.element = element;
     element.mathfield = this;
 
-    // Load the fonts, inject the core and mathfield stylesheets
-    if (this.options.fontsDirectory !== null)
-      void loadFonts(this.options.fontsDirectory);
+    // Inject the core and mathfield stylesheets
     if (!CORE_STYLESHEET_HASH)
       CORE_STYLESHEET_HASH = hashCode(CORE_STYLESHEET).toString(36);
 
@@ -255,103 +236,8 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
       injectStylesheet(element, MATHFIELD_STYLESHEET, MATHFIELD_STYLESHEET_HASH)
     );
 
-    // Additional elements used for UI.
-    const markup: string[] = [];
-
-    // const accessibleNodeID =
-    //   Date.now().toString(36).slice(-2) +
-    //   Math.floor(Math.random() * 0x186a0).toString(36);
-    // Add "aria-labelledby="${accessibleNodeID}"" to the keyboard sink
-
-    // 1/ The keyboard event capture element.
-    markup.push(
-      `<span contenteditable=true aria-multiline=false class=ML__keyboard-sink autocapitalize=off autocomplete=off autocorrect=off spellcheck=false inputmode=none tabindex=${
-        element.tabIndex ?? 0
-      }></span>`
-    );
-
-    // 2/ The field, where the math equation will be displayed
-    markup.push('<span part=container class=ML__container aria-hidden=true>');
-    markup.push('<span part=content class=ML__content></span>');
-
-    // 2.1/ The virtual keyboard toggle
-    markup.push(
-      `<div part=virtual-keyboard-toggle class=ML__virtual-keyboard-toggle role=button data-ML__tooltip="${localize(
-        'tooltip.toggle virtual keyboard'
-      )}">`
-    );
-    markup.push(
-      this.options.virtualKeyboardToggleGlyph ?? DEFAULT_KEYBOARD_TOGGLE_GLYPH
-    );
-    markup.push('</div>');
-
-    markup.push('<div class=ML__placeholdercontainer></div>');
-
-    markup.push('</span>');
-
-    // 3.1/ The aria-live region for announcements
-
-    markup.push('<div class=ML__sr-only>');
-    markup.push(
-      '<span role=status aria-live=assertive aria-atomic=true></span>'
-    );
-
-    // markup.push(
-    //   `<span class=accessibleMathML id="${accessibleNodeID}"></span>`
-    // );
-    markup.push('</div>');
-
-    this.element.innerHTML = this.options.createHTML(markup.join(''));
-    if (!this.element.children) {
-      console.error(
-        '%cMathLive: Something went wrong and the mathfield could not be created.%c\n' +
-          'If you are using Vue, this may be because you are using the ' +
-          'runtime-only build of Vue. Make sure to include ' +
-          "'runtimeCompiler: true' in your Vue configuration. There" +
-          'may a warning from Vue in the log above.',
-
-        'color:red;font-family:system-ui;font-size:1.2rem;font-weight:bold',
-        'color:inherit;font-family:system-ui;font-size:inherit;font-weight:inherit'
-      );
-      return;
-    }
-
-    this.field = this.element.querySelector('[part=content]')!;
-
-    // Listen to 'click' events on the part of the field that doesn't have
-    // content, so we avoid sending two 'click' events
-    this.field.addEventListener(
-      'click',
-      (evt) => evt.stopImmediatePropagation(),
-      { capture: false }
-    );
-
-    // Listen to 'wheel' events to scroll (horizontally) the field when it overflows
-    this.field.addEventListener('wheel', this, { passive: false });
-
-    // Delegate pointer events
-    if ('PointerEvent' in window)
-      this.field.addEventListener('pointerdown', this);
-    else this.field.addEventListener('mousedown', this);
-
-    this.virtualKeyboardToggle = this.element.querySelector<HTMLElement>(
-      '[part=virtual-keyboard-toggle]'
-    )!;
-    if (!this.options.readOnly && this.options.virtualKeyboardMode === 'manual')
-      this.virtualKeyboardToggle.classList.add('is-visible');
-    else this.virtualKeyboardToggle.classList.remove('is-visible');
-
-    attachButtonHandlers(
-      this.virtualKeyboardToggle,
-      (command) => this.executeCommand(command),
-      {
-        default: 'toggleVirtualKeyboard',
-        shift: 'toggleVirtualKeyboardShift',
-      }
-    );
-
-    this.ariaLiveText = this.element.querySelector('[role=status]')!;
-    // this.accessibleMathML = this.element.querySelector('.accessibleMathML')!;
+    // Focus/blur state
+    this.blurred = true;
 
     // The keystroke caption panel and the popover are initially hidden
     this.keystrokeCaptionVisible = false;
@@ -381,100 +267,11 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     this.style = {};
     this.adoptStyle = 'left';
 
-    if (this.options.readOnly) this.element.classList.add('ML__isReadOnly');
-    else this.element.classList.remove('ML__isReadOnly');
-
     if (this.options.defaultMode === 'inline-math')
-      this.element.classList.add('ML__isInline');
-    else this.element.classList.remove('ML__isInline');
+      this.element.classList.add('ML__is-inline');
+    else this.element.classList.remove('ML__is-inline');
 
-    // Focus/blur state
-    this.blurred = true;
-
-    // Capture clipboard events
-    // Delegate keyboard events
-    this.keyboardDelegate = delegateKeyboardEvents(
-      this.element.querySelector('.ML__keyboard-sink')!,
-      this.element,
-      {
-        onFocus: () => this.onFocus(),
-        onBlur: () => this.onBlur(),
-        onInput: (text) => onInput(this, text),
-        onKeystroke: (keystroke, event) => onKeystroke(this, keystroke, event),
-        onCompositionStart: (composition) =>
-          this.onCompositionStart(composition),
-        onCompositionUpdate: (composition) =>
-          this.onCompositionUpdate(composition),
-        onCompositionEnd: (composition) => this.onCompositionEnd(composition),
-        onCut: (ev) => {
-          // Ignore if in read-only mode
-          if (this.promptSelectionLocked) {
-            this.model.announce('plonk');
-            return;
-          }
-
-          if (contentWillChange(this.model, { inputType: 'deleteByCut' })) {
-            // Snapshot the undo state
-            this.snapshot();
-
-            // Copy to the clipboard
-            ModeEditor.onCopy(this, ev);
-
-            // Delete the selection
-            deleteRange(this.model, range(this.model.selection), 'deleteByCut');
-
-            requestUpdate(this);
-          }
-        },
-        onCopy: (ev) => ModeEditor.onCopy(this, ev),
-        onPaste: (ev) => {
-          // Ignore if in read-only mode
-          let result = !this.promptSelectionLocked;
-
-          if (result) {
-            result = ModeEditor.onPaste(
-              this.model.at(this.model.position).mode,
-              this,
-              ev.clipboardData
-            );
-          }
-
-          if (!result) this.model.announce('plonk');
-
-          ev.preventDefault();
-          ev.stopPropagation();
-          return result;
-        },
-      }
-    );
-
-    // Request notification for when the window is resized or the device
-    // switched from portrait to landscape, to adjust the UI (popover, etc...)
-    window.addEventListener('resize', this);
-
-    // When the window loses focus, the browser will restore the focus to a
-    // textarea element if it had the focus when the window was blured.
-    // But it doesn't restore the focus for math-field elements (and other
-    // custom elements, presumably). So, listen for when the window loses focus
-    // (during the capture phase, before the mathfield potentially loses focus)\
-    // then, if this mathfield has focus, listen for when the window regains
-    // focus, and restore the focus to this mathfield.
-
-    window.addEventListener(
-      'blur',
-      () => {
-        if (isValidMathfield(this) && this.hasFocus()) {
-          window.addEventListener(
-            'focus',
-            (evt) => {
-              if (evt.target === window && isValidMathfield(this)) this.focus();
-            },
-            { once: true }
-          );
-        }
-      },
-      { capture: true }
-    );
+    this.dirty = false;
 
     // Setup the model
     this.model = new ModelPrivate(
@@ -504,27 +301,221 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
       });
     }
 
+    // Additional elements used for UI.
+    const markup: string[] = [];
+
+    // const accessibleNodeID =
+    //   Date.now().toString(36).slice(-2) +
+    //   Math.floor(Math.random() * 0x186a0).toString(36);
+    // Add "aria-labelledby="${accessibleNodeID}"" to the keyboard sink
+
+    // 1/ The keyboard event capture element.
+    markup.push(
+      `<span contenteditable=true aria-multiline=false part=keyboard-sink class=ML__keyboard-sink autocapitalize=off autocomplete=off autocorrect=off spellcheck=false inputmode=none tabindex=0></span>`
+    );
+
+    // 2/ The field, where the math equation will be displayed
+
+    // Start with hidden content to minimize flashing during creation
+    // The visibility will be reset during render
+    markup.push(
+      '<span part=container class=ML__container aria-hidden=true  style="visibility:hidden">'
+    );
+    markup.push('<span part=content class=ML__content>');
+    markup.push(contentMarkup(this));
+    markup.push('</span>');
+
+    // 2.1/ The virtual keyboard toggle
+    markup.push(
+      `<div part=virtual-keyboard-toggle class=ML__virtual-keyboard-toggle role=button ${
+        this.hasEditableContent ? '' : 'style="display:none;"'
+      }data-ML__tooltip="${localize('tooltip.toggle virtual keyboard')}">`
+    );
+    markup.push(DEFAULT_KEYBOARD_TOGGLE_GLYPH);
+    markup.push('</div>');
+
+    markup.push('</span>'); // end container
+
+    // 3.1/ The aria-live region for announcements
+
+    markup.push('<span class=ML__sr-only>');
+    markup.push(
+      '<span role=status aria-live=assertive aria-atomic=true></span>'
+    );
+
+    // markup.push(
+    //   `<span class=accessibleMathML id="${accessibleNodeID}"></span>`
+    // );
+    markup.push('</span>');
+
+    this.element.innerHTML = window.MathfieldElement.createHTML(
+      markup.join('')
+    );
+    if (!this.element.children) {
+      console.error(
+        `%cMathLive {{SDK_VERSION}}: Something went wrong and the mathfield could not be created.%c
+If you are using Vue, this may be because you are using the runtime-only build of Vue. Make sure to include \`runtimeCompiler: true\` in your Vue configuration. There may a warning from Vue in the log above.`,
+        'color:red;font-family:system-ui;font-size:1.2rem;font-weight:bold',
+        'color:inherit;font-family:system-ui;font-size:inherit;font-weight:inherit'
+      );
+      return;
+    }
+
+    this.field = this.element.querySelector('[part=content]')!;
+
+    // Listen to 'click' events on the part of the field that doesn't have
+    // content, so we avoid sending two 'click' events
+    this.field.addEventListener(
+      'click',
+      (evt) => evt.stopImmediatePropagation(),
+      { capture: false }
+    );
+
+    // Listen to 'wheel' events to scroll (horizontally) the field when it overflows
+    this.field.addEventListener('wheel', this, { passive: false });
+
+    // Delegate pointer events
+    if ('PointerEvent' in window)
+      this.field.addEventListener('pointerdown', this);
+    else this.field.addEventListener('mousedown', this);
+
+    attachButtonHandlers(
+      this.element.querySelector<HTMLElement>(
+        '[part=virtual-keyboard-toggle]'
+      )!,
+      (command) => this.executeCommand(command),
+      {
+        default: 'toggleVirtualKeyboard',
+        shift: 'toggleVirtualKeyboardShift',
+      }
+    );
+
+    this.ariaLiveText = this.element.querySelector('[role=status]')!;
+    // this.accessibleMathML = this.element.querySelector('.accessibleMathML')!;
+
+    // Capture clipboard events
+    // Delegate keyboard events
+    this.keyboardDelegate = delegateKeyboardEvents(
+      this.element.querySelector('.ML__keyboard-sink')!,
+      this.element,
+      {
+        onFocus: () => this.onFocus(),
+        onBlur: () => this.onBlur(),
+        onInput: (text) => onInput(this, text),
+        onKeystroke: (keystroke, event) => onKeystroke(this, keystroke, event),
+        onCompositionStart: (composition) =>
+          this.onCompositionStart(composition),
+        onCompositionUpdate: (composition) =>
+          this.onCompositionUpdate(composition),
+        onCompositionEnd: (composition) => this.onCompositionEnd(composition),
+        onCut: (ev) => {
+          // Ignore if in read-only mode
+          if (!this.isSelectionEditable) {
+            this.model.announce('plonk');
+            return;
+          }
+
+          if (contentWillChange(this.model, { inputType: 'deleteByCut' })) {
+            // Snapshot the undo state
+            this.snapshot();
+
+            // Copy to the clipboard
+            ModeEditor.onCopy(this, ev);
+
+            // Delete the selection
+            deleteRange(this.model, range(this.model.selection), 'deleteByCut');
+
+            requestUpdate(this);
+          }
+        },
+        onCopy: (ev) => ModeEditor.onCopy(this, ev),
+        onPaste: (ev) => {
+          // Ignore if in read-only mode
+          let result = this.isSelectionEditable;
+
+          if (result) {
+            result = ModeEditor.onPaste(
+              this.model.at(this.model.position).mode,
+              this,
+              ev.clipboardData
+            );
+          }
+
+          if (!result) this.model.announce('plonk');
+
+          ev.preventDefault();
+          ev.stopPropagation();
+          return result;
+        },
+      }
+    );
+
+    // Request notification for when the window is resized or the device
+    // switched from portrait to landscape, to adjust the UI (popover, etc...)
+    window.addEventListener('resize', this);
+
+    // When the window loses focus, the browser will restore the focus to a
+    // textarea element if it had the focus when the window was blured.
+    // But it doesn't restore the focus for math-field elements (and other
+    // custom elements, presumably). So, listen for when the window loses focus
+    // (during the capture phase, before the mathfield potentially loses focus)\
+    // then, if this mathfield has focus, listen for when the window regains
+    // focus, and restore the focus to this mathfield.
+    // Check for window.top, i.e. that we're not in an iframe. The "window"
+    // object of an iframe also gets sent a blur event when the frame loses focus
+
+    if (window === window.top) {
+      window.addEventListener(
+        'blur',
+        () => {
+          if (isValidMathfield(this) && this.hasFocus()) {
+            window.addEventListener(
+              'focus',
+              (evt) => {
+                if (evt.target === window && isValidMathfield(this))
+                  this.focus();
+              },
+              { once: true }
+            );
+          }
+        },
+        { capture: true }
+      );
+    }
     // Now start recording potentially undoable actions
     this.undoManager.startRecording();
     this.undoManager.snapshot();
 
-    if (
-      gKeyboardLayout &&
-      !this.options.locale.startsWith(gKeyboardLayout.locale)
-    )
-      setKeyboardLayoutLocale(this.options.locale);
-
-    requestUpdate(this);
+    if (gKeyboardLayout && !l10n.locale.startsWith(gKeyboardLayout.locale))
+      setKeyboardLayoutLocale(l10n.locale);
 
     // When fonts are done loading, re-render
     // (the selection highlighting may be out of date due to the HTML layout
     // having been updated with the new font metrics)
-    document.fonts.ready.then(() => render(this));
+    if (gFontsState !== 'ready')
+      document.fonts.ready.then(() => renderSelection(this));
+
+    // The mathfield container is initially set with a visibility of hidden
+    // to minimize flashing during construction.
+    element
+      .querySelector<HTMLElement>('.ML__container')!
+      .style.removeProperty('visibility');
   }
 
-  get audioContext(): AudioContext {
-    if (!this._audioContext) this._audioContext = new AudioContext();
-    return this._audioContext;
+  connectToVirtualKeyboard(): void {
+    if (this.connectedToVirtualKeyboard) return;
+    this.connectedToVirtualKeyboard = true;
+    window.addEventListener('message', this);
+    // Connect the kbd or kbd proxy to the current window
+    window.mathVirtualKeyboard.connect();
+    window.mathVirtualKeyboard.updateToolbar(makeProxy(this));
+  }
+
+  disconnectFromVirtualKeyboard(): void {
+    if (!this.connectedToVirtualKeyboard) return;
+    window.removeEventListener('message', this);
+    window.mathVirtualKeyboard.disconnect();
+    this.connectedToVirtualKeyboard = false;
   }
 
   /** Global Context.
@@ -560,7 +551,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   get fractionNavigationOrder():
     | 'numerator-denominator'
     | 'denominator-numerator' {
-    return this.options?.fractionNavigationOrder ?? 'numerator-denominator';
+    return window.MathfieldElement.fractionNavigationOrder;
   }
 
   get placeholderSymbol(): string {
@@ -575,27 +566,62 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     return this.options?.readOnly ?? false;
   }
 
-  /** returns true if readOnly and at least one ID'd placeholder */
-  get prompting(): boolean {
+  get disabled(): boolean {
+    return this.host?.['disabled'] ?? false;
+  }
+
+  // This reflects the contenteditable attribute.
+  // Use hasEditableContent instead to take into account readonly and disabled
+  // states.
+  get contentEditable(): boolean {
+    return this.host?.getAttribute('contenteditable') !== 'false' ?? true;
+  }
+
+  // This reflect the `user-select` CSS property
+  get userSelect(): string {
+    if (!this.host) return '';
+    const style = getComputedStyle(this.host);
+    // Safari uses '-webkit-user-select'. Other browsers use 'user-select'
     return (
-      this.readOnly &&
-      this.model
-        .getAllAtoms(0)
-        .some((a: PromptAtom) => a.type === 'prompt' && !a.captureSelection)
+      style.getPropertyValue('user-select') ||
+      style.getPropertyValue('-webkit-user-select')
     );
   }
 
-  /** Returns true if mathfield is in readOnly mode and selection not contained to a single ID'd placeholder */
-  get promptSelectionLocked(): boolean {
-    if (!this.readOnly) return false;
+  // Use to hide/show the virtual keyboard toggle. If false, no point in
+  // showing  the toggle.
+  get hasEditableContent(): boolean {
+    if (this.disabled || !this.contentEditable) return false;
+    return !this.readOnly || this.hasEditablePrompts;
+  }
+
+  get hasEditablePrompts(): boolean {
+    return (
+      this.readOnly &&
+      !this.disabled &&
+      this.contentEditable &&
+      this.model.findAtom(
+        (a: PromptAtom) => a.type === 'prompt' && !a.locked
+      ) !== undefined
+    );
+  }
+
+  /** Returns true if the selection is editable:
+   * - mathfield is not disabled, and has contentEditable
+   * - if mathfield is readonly, the current selection is in a prompt which is editable (not locked)
+   */
+  get isSelectionEditable(): boolean {
+    if (this.disabled || !this.contentEditable) return false;
+    if (!this.readOnly) return true;
+
     const anchor = this.model.at(this.model.anchor);
     const cursor = this.model.at(this.model.position);
 
     const ancestor = Atom.commonAncestor(anchor, cursor);
 
-    if (ancestor?.inEditablePrompt) return false;
+    if (ancestor?.parentPrompt) return true;
 
-    return true;
+    return false;
   }
 
   get letterShapeStyle(): 'auto' | 'tex' | 'iso' | 'french' | 'upright' {
@@ -620,61 +646,6 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     );
   }
 
-  get virtualKeyboard(): VirtualKeyboardInterface | undefined {
-    if (this.promptSelectionLocked) return undefined;
-
-    // The virtual keyboard can be either attached to this mathfield
-    // or a delegate that mirrors a global virtual keyboard attached
-    // to the document. This is useful for example when using
-    // mathfield in iframes so that all the mathfields share the keyboard
-    // at the document level (rather than having one in each iframe)
-    // If there is a shared virtual keyboard attached to this document, use it
-    // even if `options.useSharedVirtualKeyboard` is false.
-
-    if (!this._virtualKeyboard) {
-      if (
-        this.options.useSharedVirtualKeyboard ||
-        globalMathLive().sharedVirtualKeyboard
-      ) {
-        this._virtualKeyboard = new VirtualKeyboardDelegate({
-          targetOrigin: this.options.sharedVirtualKeyboardTargetOrigin,
-          originValidator: this.options.originValidator,
-          mathfield: this,
-        });
-      } else this._virtualKeyboard = new VirtualKeyboard(this.options, this);
-    }
-    return this._virtualKeyboard;
-  }
-
-  get computeEngine(): ComputeEngine | null {
-    if (this._computeEngine === undefined) {
-      const ComputeEngineCtor =
-        globalThis[Symbol.for('io.cortexjs.compute-engine')]?.ComputeEngine;
-      if (ComputeEngineCtor) this._computeEngine = new ComputeEngineCtor();
-      else {
-        console.error(
-          'MathLive: The CortexJS Compute Engine library is not available.\nLoad the library, for example with:\nimport "https://unpkg.com/@cortex-js/compute-engine?module"'
-        );
-      }
-      if (this._computeEngine && this.options.decimalSeparator === ',')
-        this._computeEngine.latexOptions.decimalMarker = '{,}';
-    }
-    return this._computeEngine ?? null;
-  }
-
-  get virtualKeyboardState(): 'hidden' | 'visible' {
-    if (this.virtualKeyboard?.visible) return 'visible';
-    return 'hidden';
-  }
-
-  set virtualKeyboardState(value: 'hidden' | 'visible') {
-    if (!this.virtualKeyboard) return;
-    if (value === 'hidden')
-      this.virtualKeyboard.executeCommand('hideVirtualKeyboard');
-    else if (value === 'visible')
-      this.virtualKeyboard.executeCommand('showVirtualKeyboard');
-  }
-
   get keybindings(): Keybinding[] {
     if (this._keybindings) return this._keybindings;
 
@@ -688,7 +659,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
 
       if (errors.length > 0) {
         console.error(
-          'MathLive: Invalid keybindings for current keyboard layout',
+          `MathLive {{SDK_VERSION}}: Invalid keybindings for current keyboard layout`,
           errors
         );
       }
@@ -699,13 +670,6 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   setOptions(config: Partial<MathfieldOptionsPrivate>): void {
     this.options = updateOptions(this.options, config);
 
-    if ('computeEngine' in config)
-      this._computeEngine = this.options.computeEngine;
-
-    if (this._computeEngine && 'decimalSeparator' in config) {
-      this._computeEngine.latexOptions.decimalMarker =
-        this.options.decimalSeparator === ',' ? '{,}' : '.';
-    }
     this.model.setListeners({
       onSelectionDidChange: (_sender: ModelPrivate) =>
         this._onSelectionDidChange(),
@@ -713,50 +677,15 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     this.model.options.macros = this.options
       .macros as NormalizedMacroDictionary;
 
-    if (
-      gKeyboardLayout &&
-      !this.options.locale.startsWith(gKeyboardLayout.locale)
-    )
-      setKeyboardLayoutLocale(this.options.locale);
-
     this._keybindings = undefined;
 
-    if (
-      'soundsDirectory' in config ||
-      'plonkSound' in config ||
-      'keypressSound' in config ||
-      'spacebarKeypressSound' in config ||
-      'returnKeypressSound' in config ||
-      'deleteKeypressSound' in config
-    )
-      this.audioBuffers = {};
-
     if (this.options.defaultMode === 'inline-math')
-      this.element!.classList.add('ML__isInline');
-    else this.element!.classList.remove('ML__isInline');
+      this.element!.classList.add('ML__is-inline');
+    else this.element!.classList.remove('ML__is-inline');
 
     if (this.options.readOnly) {
-      if (this.hasFocus() && this.virtualKeyboardState === 'visible')
+      if (this.hasFocus() && window.mathVirtualKeyboard.visible)
         this.executeCommand('hideVirtualKeyboard');
-      this.onBlur();
-      this.element!.classList.add('ML__isReadOnly');
-    } else this.element!.classList.remove('ML__isReadOnly');
-
-    this.virtualKeyboard?.setOptions(this.options);
-
-    if (!this.options.readOnly && this.options.virtualKeyboardMode === 'manual')
-      this.virtualKeyboardToggle.classList.add('is-visible');
-    else this.virtualKeyboardToggle.classList.remove('is-visible');
-
-    if ('virtualKeyboardToggleGlyph' in config) {
-      const toggle = this.element?.querySelector(
-        '.ML__virtual-keyboard-toggle'
-      );
-      if (toggle) {
-        toggle.innerHTML = this.options.createHTML(
-          this.options.virtualKeyboardToggleGlyph
-        );
-      }
     }
 
     // Changing some config options (i.e. `macros`) may
@@ -804,6 +733,27 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
    */
   handleEvent(evt: Event): void {
     if (!isValidMathfield(this)) return;
+    if (isVirtualKeyboardMessage(evt)) {
+      // console.log('mf received ', evt.data.action, evt);
+      if (!validateOrigin(evt.origin, this.options.originValidator ?? 'none')) {
+        throw new DOMException(
+          `Message from unknown origin (${evt.origin}) cannot be handled`,
+          'SecurityError'
+        );
+      }
+
+      const { action } = evt.data;
+
+      if (action === 'execute-command') {
+        const command = evt.data.command!;
+        if (getCommandTarget(command) === 'virtual-keyboard') return;
+        this.executeCommand(command);
+      } else if (action === 'update-state') {
+      } else if (action === 'focus') this.focus();
+      else if (action === 'blur') this.blur();
+      return;
+    }
+
     switch (evt.type) {
       case 'focus':
         this.onFocus();
@@ -842,6 +792,8 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   dispose(): void {
     if (!isValidMathfield(this)) return;
 
+    this.disconnectFromVirtualKeyboard();
+
     const element = this.element!;
     delete (this as any).element;
     delete element.mathfield;
@@ -859,12 +811,6 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     delete (this as any).ariaLiveText;
     delete (this as any).field;
     delete (this as any).fieldContent;
-    this.virtualKeyboardToggle.remove();
-    delete (this as any).virtualKeyboardToggle;
-    if (this._virtualKeyboard) {
-      this._virtualKeyboard.dispose();
-      delete this._virtualKeyboard;
-    }
     disposePopover(this);
     disposeKeystrokeCaption(this);
 
@@ -896,9 +842,14 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   executeCommand(
     command: SelectorPrivate | [SelectorPrivate, ...unknown[]]
   ): boolean {
-    if (getCommandTarget(command) === 'virtual-keyboard')
-      return this.virtualKeyboard?.executeCommand(command) ?? false;
-
+    if (getCommandTarget(command) === 'virtual-keyboard') {
+      this.focus({ scrollIntoView: false });
+      window.mathVirtualKeyboard.executeCommand(command);
+      requestAnimationFrame(() =>
+        window.mathVirtualKeyboard.updateToolbar(makeProxy(this))
+      );
+      return false;
+    }
     return perform(this, command);
   }
 
@@ -938,81 +889,14 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   }
 
   get expression(): BoxedExpression | null {
-    const ce = this.computeEngine;
-    if (!ce) return null;
-    return ce.box(ce.parse(this.model.getValue()));
-  }
-
-  async loadSound(
-    sound: 'keypress' | 'spacebar' | 'delete' | 'plonk' | 'return'
-  ): Promise<void> {
-    //  Clear out the cached audio buffer
-    delete this.audioBuffers[sound];
-
-    let soundFile: string | undefined | null = '';
-    switch (sound) {
-      case 'keypress':
-        soundFile =
-          typeof this.options.keypressSound === 'string'
-            ? this.options.keypressSound
-            : this.options.keypressSound?.default;
-        break;
-      case 'spacebar':
-        soundFile =
-          typeof this.options.keypressSound === 'string'
-            ? this.options.keypressSound
-            : this.options.keypressSound?.spacebar ??
-              this.options.keypressSound?.default;
-        break;
-      case 'delete':
-        soundFile =
-          typeof this.options.keypressSound === 'string'
-            ? this.options.keypressSound
-            : this.options.keypressSound?.delete ??
-              this.options.keypressSound?.default;
-        break;
-      case 'plonk':
-        soundFile = this.options.plonkSound;
-        break;
+    const ce = window.MathfieldElement.computeEngine;
+    if (!ce) {
+      console.error(
+        `MathLive {{SDK_VERSION}}:  no compute engine available. Make sure the Compute Engine library is loaded.`
+      );
+      return null;
     }
-
-    if (typeof soundFile !== 'string') return;
-    soundFile = soundFile.trim();
-    const soundsDirectory = this.options.soundsDirectory;
-    if (
-      soundsDirectory === undefined ||
-      soundsDirectory === null ||
-      soundsDirectory === 'null' ||
-      soundFile === 'none' ||
-      soundFile === 'null'
-    )
-      return;
-
-    // Fetch the audio buffer
-    const response = await fetch(
-      await resolveUrl(soundsDirectory + '/' + soundFile)
-    );
-    const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-    this.audioBuffers[sound] = audioBuffer;
-  }
-
-  async playSound(
-    name: 'keypress' | 'spacebar' | 'delete' | 'plonk' | 'return'
-  ): Promise<void> {
-    if (!this.audioBuffers[name]) await this.loadSound(name);
-    if (!this.audioBuffers[name]) return;
-
-    // A sound source can't be played twice, so creeate a new one
-    const soundSource = this.audioContext.createBufferSource();
-    soundSource.buffer = this.audioBuffers[name];
-
-    // Set the volume
-    const gainNode = this.audioContext.createGain();
-    gainNode.gain.value = AUDIO_FEEDBACK_VOLUME;
-    soundSource.connect(gainNode).connect(this.audioContext.destination);
-
-    soundSource.start();
+    return ce.box(ce.parse(this.model.getValue()));
   }
 
   /** Make sure the caret is visible within the matfield.
@@ -1094,47 +978,60 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   }
 
   insert(s: string, options?: InsertOptions): boolean {
-    if (typeof s === 'string' && s.length > 0) {
-      // This code path is used when inserting content from the virtual keyboard
-      // (i.e. inserting `\sin`). We need to ignore previous key combinations
-      // in this case
-      this.flushInlineShortcutBuffer();
+    if (typeof s !== 'string') return false;
 
-      options = options ?? { mode: 'math' };
-      if (options.focus) this.focus();
+    if (
+      s.length === 0 &&
+      (options?.insertionMode === 'insertBefore' ||
+        options?.insertionMode === 'insertAfter')
+    )
+      return false;
 
-      if (options.feedback) {
-        if (this.options.keypressVibration && canVibrate())
-          navigator.vibrate(HAPTIC_FEEDBACK_DURATION);
+    if (s.length === 0 && this.model.selectionIsCollapsed) return false;
 
-        this.playSound('keypress');
-      }
+    // This code path is used when inserting content from the virtual keyboard
+    // (i.e. inserting `\sin`). We need to ignore previous key combinations
+    // in this case
+    this.flushInlineShortcutBuffer();
 
-      if (options.scrollIntoView) this.scrollIntoView();
+    options = options ?? { mode: 'math' };
+    if (options.focus) this.focus();
 
-      if (s === '\\\\') {
-        // This string is interpreted as an "insert row after" command
-        addRowAfter(this.model);
-      } else if (s === '&') addColumnAfter(this.model);
-      else {
-        const savedStyle = this.style;
-        ModeEditor.insert(this.mode, this.model, s, {
-          style: this.model.at(this.model.position).computedStyle,
-          ...options,
-        });
-        if (options.resetStyle) this.style = savedStyle;
-      }
+    if (options.feedback) {
+      if (window.MathfieldElement.keypressVibration && canVibrate())
+        navigator.vibrate(HAPTIC_FEEDBACK_DURATION);
 
-      this.undoManager.snapshot();
-      requestUpdate(this);
-      return true;
+      window.MathfieldElement.playSound('keypress');
     }
 
-    return false;
+    if (options.scrollIntoView) this.scrollIntoView();
+
+    if (s === '\\\\') {
+      // This string is interpreted as an "insert row after" command
+      addRowAfter(this.model);
+    } else if (s === '&') addColumnAfter(this.model);
+    else {
+      const savedStyle = this.style;
+      ModeEditor.insert(this.mode, this.model, s, {
+        style: this.model.at(this.model.position).computedStyle,
+        ...options,
+      });
+      if (options.resetStyle) this.style = savedStyle;
+    }
+
+    this.undoManager.snapshot();
+    requestUpdate(this);
+    return true;
   }
 
   switchMode(mode: ParseMode, prefix = '', suffix = ''): void {
-    if (this.mode === mode || this.options.readOnly) return;
+    if (
+      this.mode === mode ||
+      this.readOnly ||
+      !this.contentEditable ||
+      this.disabled
+    )
+      return;
 
     // Dispatch event with option of canceling
     if (
@@ -1237,17 +1134,20 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   }
 
   hasFocus(): boolean {
-    return this.keyboardDelegate.hasFocus();
+    return !this.blurred;
   }
 
   focus(options?: { scrollIntoView: boolean }): void {
-    if (this.hasFocus()) return;
-    this.keyboardDelegate.focus();
-    this.model.announce('line');
+    if (!this.hasFocus()) {
+      this.keyboardDelegate.focus();
+      this.connectToVirtualKeyboard();
+      this.model.announce('line');
+    }
     if (options?.scrollIntoView ?? true) this.scrollIntoView();
   }
 
   blur(): void {
+    this.disconnectFromVirtualKeyboard();
     if (!this.hasFocus()) return;
     this.keyboardDelegate.blur();
   }
@@ -1273,9 +1173,8 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
       { content: !options.suppressChangeNotifications, type: 'insertText' },
       () => {
         if (options.range === undefined) {
-          this.model.selection.ranges.forEach((range) =>
-            applyStyle(this.model, range, style, { operation })
-          );
+          for (const range of this.model.selection.ranges)
+            applyStyle(this.model, range, style, { operation });
         } else applyStyle(this.model, options.range, style, { operation });
       }
     );
@@ -1297,48 +1196,108 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     return true;
   }
 
-  getPrompt(id: string): PromptAtom {
-    const prompts = this.model
-      .getAllAtoms(0)
-      .filter((a) => a.type === 'prompt') as PromptAtom[];
-    const promptsWithID = prompts.filter((a) => a.placeholderId === id);
+  getPrompt(id: string): PromptAtom | undefined {
+    const prompt = this.model.findAtom(
+      (a) => a.type === 'prompt' && (a as PromptAtom).placeholderId === id
+    ) as PromptAtom | undefined;
     console.assert(
-      promptsWithID.length > 0,
-      'no prompts with matching ID found'
+      prompt !== undefined,
+      `MathLive {{SDK_VERSION}}:  no prompts with matching ID found`
     );
-    console.assert(promptsWithID.length < 2, 'duplicate prompt IDs found');
-    return promptsWithID[0];
+    return prompt;
   }
 
-  getPromptContent(id: string): string {
-    return this.getPrompt(id).bodyToLatex({ defaultMode: 'math' });
+  getPromptValue(id: string, format?: OutputFormat): string {
+    const prompt = this.getPrompt(id);
+    if (!prompt) {
+      console.error(`MathLive {{SDK_VERSION}}: unknown prompt ${id}`);
+      return '';
+    }
+
+    const first = this.model.offsetOf(prompt.firstChild);
+    const last = this.model.offsetOf(prompt.lastChild);
+
+    return this.model.getValue(first, last, format);
   }
 
-  get prompts(): string[] {
+  getPrompts(filter?: {
+    id?: string;
+    locked?: boolean;
+    correctness?: 'correct' | 'incorrect' | 'undefined';
+  }): string[] {
     return this.model
-      .getAllAtoms(0)
-      .filter((a) => a.type === 'prompt')
-      .map((a) => a.bodyToLatex({ defaultMode: 'math' }));
+      .getAllAtoms()
+      .filter((a: PromptAtom) => {
+        if (a.type !== 'prompt') return false;
+        if (!filter) return true;
+
+        if (filter.id && a.placeholderId !== filter.id) return false;
+        if (filter.locked && a.locked !== filter.locked) return false;
+        if (filter.correctness === 'undefined' && a.correctness) return false;
+        if (filter.correctness && a.correctness !== filter.correctness)
+          return false;
+
+        return true;
+      })
+      .map((a: PromptAtom) => a.placeholderId!);
   }
 
-  setPromptContent(id: string, content?: string): void {
-    if (content !== undefined)
-      this.getPrompt(id).body = parseLatex(content, this);
-    requestUpdate(this);
-  }
-
-  setPromptCorrectness(
+  setPromptValue(
     id: string,
-    correctness: 'correct' | 'incorrect' | undefined
+    value?: string,
+    insertOptions?: Omit<InsertOptions, 'insertionMode'>
   ): void {
-    this.getPrompt(id).correctness = correctness;
+    if (value !== undefined) {
+      const prompt = this.getPrompt(id);
+      if (!prompt) {
+        console.error(`MathLive {{SDK_VERSION}}: unknown prompt ${id}`);
+        return;
+      }
+
+      const branchRange = this.model.getBranchRange(
+        this.model.offsetOf(prompt),
+        'body'
+      );
+
+      this.model.setSelection(branchRange);
+      this.insert(value, {
+        ...insertOptions,
+        insertionMode: 'replaceSelection',
+      });
+    }
+    if (insertOptions?.suppressChangeNotifications)
+      this.valueOnFocus = this.getValue();
     requestUpdate(this);
   }
 
-  setPromptLocked(id: string, locked: boolean): void {
-    this.getPrompt(id).locked = locked;
-    this.getPrompt(id).captureSelection = locked;
+  setPromptState(
+    id: string,
+    state: 'correct' | 'incorrect' | 'undefined' | undefined,
+    locked?: boolean
+  ): void {
+    const prompt = this.getPrompt(id);
+    if (!prompt) {
+      console.error(`MathLive {{SDK_VERSION}}: unknown prompt ${id}`);
+      return;
+    }
+    if (state === 'undefined') prompt.correctness = undefined;
+    else if (typeof state === 'string') prompt.correctness = state;
+
+    if (typeof locked === 'boolean') {
+      prompt.locked = locked;
+      prompt.captureSelection = locked;
+    }
+
     requestUpdate(this);
+  }
+
+  getPromptState(id: string): ['correct' | 'incorrect' | undefined, boolean] {
+    const prompt = this.getPrompt(id);
+    if (!prompt) {
+      console.error(`MathLive {{SDK_VERSION}}: unknown prompt ${id}`);
+      return [undefined, true];
+    }
+    return [prompt.correctness, prompt.locked];
   }
 
   canUndo(): boolean {
@@ -1355,7 +1314,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
 
   snapshot(): void {
     if (this.undoManager.snapshot()) {
-      this.virtualKeyboard?.updateToolbar(this);
+      window.mathVirtualKeyboard.updateToolbar(makeProxy(this));
       this.host?.dispatchEvent(
         new CustomEvent('undo-state-change', {
           bubbles: true,
@@ -1368,7 +1327,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
 
   snapshotAndCoalesce(): void {
     if (this.undoManager.snapshotAndCoalesce()) {
-      this.virtualKeyboard?.updateToolbar(this);
+      window.mathVirtualKeyboard.updateToolbar(makeProxy(this));
       this.host?.dispatchEvent(
         new CustomEvent('undo-state-change', {
           bubbles: true,
@@ -1381,7 +1340,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
 
   undo(): void {
     if (!this.undoManager.undo()) return;
-    this.virtualKeyboard?.updateToolbar(this);
+    window.mathVirtualKeyboard.updateToolbar(makeProxy(this));
     this.host?.dispatchEvent(
       new CustomEvent('undo-state-change', {
         bubbles: true,
@@ -1393,7 +1352,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
 
   redo(): void {
     if (!this.undoManager.redo()) return;
-    this.virtualKeyboard?.updateToolbar(this);
+    window.mathVirtualKeyboard.updateToolbar(makeProxy(this));
     this.host?.dispatchEvent(
       new CustomEvent('undo-state-change', {
         bubbles: true,
@@ -1441,31 +1400,24 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     if (this.focusBlurInProgress || !this.blurred) return;
     this.focusBlurInProgress = true;
     this.blurred = false;
+    // As a side effect, a `focus` and `focusin` events will be dispatched
     this.keyboardDelegate.focus();
 
-    this.virtualKeyboard?.setOptions(this.options);
-
-    this.virtualKeyboard?.enable();
-
-    if (this.options.virtualKeyboardMode === 'onfocus')
-      this.executeCommand('showVirtualKeyboard');
-
-    updatePopoverPosition(this);
     render(this, { interactive: true });
-
-    this.host?.dispatchEvent(
-      new FocusEvent('focus', {
-        bubbles: false, // DOM 'focus' and 'blur' don't bubble
-        composed: true,
-      })
-    );
-    // Note: a `focus-in` event is automatically dispatched
 
     // Save the current value.
     // It will be compared in `onBlur()` to see if the
     // `change` event needs to be dispatched. This
     // mimic the `<input>` and `<textarea>` behavior
     this.valueOnFocus = this.model.getValue();
+
+    // If we're in prompt mode, and the selection is
+    // not in a prompt, move it to a prompt
+    if (
+      this.hasEditablePrompts &&
+      !this.model.at(this.model.anchor).parentPrompt
+    )
+      this.executeCommand('moveToNextPlaceholder');
 
     this.focusBlurInProgress = false;
   }
@@ -1485,13 +1437,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
       );
     }
 
-    if (
-      /onfocus|manual/.test(this.options.virtualKeyboardMode) &&
-      !globalMathLive().sharedVirtualKeyboard
-    )
-      this.executeCommand('hideVirtualKeyboard');
-
-    this.virtualKeyboard?.disable();
+    this.disconnectFromVirtualKeyboard();
 
     this.host?.dispatchEvent(
       new Event('blur', {
@@ -1569,7 +1515,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     while (!target.id && target.hasChildren) target = atom.children[0];
 
     if (target.id) {
-      return this.fieldContent!.querySelector(
+      return this.fieldContent?.querySelector(
         `[data-atom-id="${target.id}"]`
       ) as HTMLSpanElement;
     }

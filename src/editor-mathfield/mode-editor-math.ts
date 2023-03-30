@@ -1,8 +1,7 @@
 /* eslint-disable no-new */
 
-import { Expression } from '@cortex-js/compute-engine/dist/types/math-json/math-json-format';
+import type { Expression } from '@cortex-js/compute-engine/dist/types/math-json/math-json-format';
 
-import type { Style } from '../public/core';
 import { InsertOptions, Offset, OutputFormat } from '../public/mathfield';
 
 import { requestUpdate } from './render';
@@ -29,6 +28,7 @@ import {
 
 import { MathfieldPrivate } from './mathfield-private';
 import { ModeEditor } from './mode-editor';
+import type { Style } from 'public/core-types';
 
 export class MathModeEditor extends ModeEditor {
   constructor() {
@@ -129,13 +129,13 @@ export class MathModeEditor extends ModeEditor {
     // 2/ Try to get a MathJSON data type
     //
     json = typeof data !== 'string' ? data.getData('application/json') : '';
-    if (json && mathfield.computeEngine) {
+    if (json && window.MathfieldElement.computeEngine) {
       try {
         const expr = JSON.parse(json);
         if (typeof expr === 'object' && 'latex' in expr && expr.latex)
           text = expr.latex;
         if (!text) {
-          const box = mathfield.computeEngine.box(expr);
+          const box = window.MathfieldElement.computeEngine.box(expr);
           if (box && !box.has('Error')) text = box.latex;
         }
         if (!text) format = 'latex';
@@ -181,7 +181,7 @@ export class MathModeEditor extends ModeEditor {
     const data =
       typeof input === 'string'
         ? input
-        : model.mathfield.computeEngine?.box(input).latex ?? '';
+        : window.MathfieldElement.computeEngine?.box(input).latex ?? '';
     if (
       !options.suppressChangeNotifications &&
       !contentWillChange(model, { data, inputType: 'insertText' })
@@ -342,19 +342,18 @@ export class MathModeEditor extends ModeEditor {
     model.suppressChangeNotifications = contentWasChanging;
 
     const lastNewAtom = newAtoms[newAtoms.length - 1];
+
+    //
     // Update the anchor's location
+    //
     if (options.selectionMode === 'placeholder') {
       // Move to the next placeholder
-      const newPlaceholders = newAtoms.reduce(
-        (acc, atom) => [
-          ...acc,
-          ...atom.children.filter((x) => x.type === 'placeholder'),
-        ],
-        []
-      );
+      const placeholder = newAtoms
+        .flatMap((x) => [x, ...x.children])
+        .find((x) => x.type === 'placeholder');
 
-      if (newPlaceholders.length > 0) {
-        const placeholderOffset = model.offsetOf(newPlaceholders[0]);
+      if (placeholder) {
+        const placeholderOffset = model.offsetOf(placeholder);
         model.setSelection(placeholderOffset - 1, placeholderOffset);
         model.announce('move'); // Should have placeholder selected
       } else if (lastNewAtom) {
@@ -386,12 +385,10 @@ function convertStringToAtoms(
   let result: Atom[] = [];
 
   if (typeof s !== 'string' || options.format === 'math-json') {
-    if (!model.mathfield.computeEngine) return ['math-json', []];
+    const ce = window.MathfieldElement.computeEngine;
+    if (!ce) return ['math-json', []];
 
-    [format, s] = [
-      'latex',
-      model.mathfield.computeEngine.box(s as Expression).latex as string,
-    ];
+    [format, s] = ['latex', ce.box(s as Expression).latex as string];
     result = parseLatex(s, model.mathfield, { parseMode: 'math' });
   } else if (typeof s === 'string' && options.format === 'ascii-math') {
     [format, s] = parseMathString(s, {

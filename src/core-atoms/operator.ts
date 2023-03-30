@@ -1,8 +1,9 @@
-import { Style, Variant, VariantStyle } from '../public/core';
+import type { Variant, VariantStyle, Style } from '../public/core-types';
+import type { GlobalContext } from 'core/types';
 
 import { Atom, AtomJson, AtomType, ToLatexOptions } from '../core/atom-class';
 import { Box } from '../core/box';
-import { Context, GlobalContext } from '../core/context';
+import { Context } from '../core/context';
 import { joinLatex } from '../core/tokenizer';
 import { AXIS_HEIGHT } from '../core/font-metrics';
 

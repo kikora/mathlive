@@ -16,18 +16,21 @@
  *
  */
 
-import { VirtualKeyboardInterface } from './mathfield';
-import { RemoteVirtualKeyboardOptions, AutoRenderOptions } from './options';
+import type { VirtualKeyboardOptions } from './virtual-keyboard';
+import type { VirtualKeyboardInterface } from './virtual-keyboard-types';
+import type { AutoRenderOptions } from './options';
 
 export * from './commands';
-export * from './core';
+export * from './core-types';
 export * from './options';
 export * from './mathfield';
 export * from './mathfield-element';
 export * from './mathlive-ssr';
+export * from './virtual-keyboard';
+export * from './virtual-keyboard-types';
 
 export declare function makeSharedVirtualKeyboard(
-  options?: Partial<RemoteVirtualKeyboardOptions>
+  options?: Partial<VirtualKeyboardOptions>
 ): VirtualKeyboardInterface & EventTarget;
 
 export declare function renderMathInDocument(options?: AutoRenderOptions): void;
@@ -40,3 +43,9 @@ export declare function renderMathInElement(
 export declare const version: {
   mathlive: string;
 };
+
+declare global {
+  interface Window {
+    mathVirtualKeyboard: VirtualKeyboardInterface & EventTarget;
+  }
+}

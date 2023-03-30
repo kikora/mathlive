@@ -120,7 +120,7 @@ export function mightProducePrintableCharacter(evt: KeyboardEvent): boolean {
   if (evt.ctrlKey || evt.metaKey) return false;
 
   // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
-  if (evt.key === 'Dead') return false;
+  if (['Dead', 'Process'].includes(evt.key)) return false;
 
   // When issued via a composition, the `code` field is empty
   if (evt.code === '') return true;
@@ -217,10 +217,9 @@ export function delegateKeyboardEvents(
 
       keydownEvent = event;
       keypressEvent = null;
-      if (!handlers.onKeystroke(keyboardEventToString(event), event)) {
+      if (!handlers.onKeystroke(keyboardEventToString(event), event))
         keydownEvent = null;
-        keyboardSink.textContent = '';
-      }
+      else keyboardSink.textContent = '';
     },
     true
   );
@@ -307,7 +306,7 @@ export function delegateKeyboardEvents(
   keyboardSink.addEventListener(
     'paste',
     (event: ClipboardEvent) => {
-      // In some cases (Linux browsers), the text area might not be focused
+      // In some cases (Linux browsers), the keyboard sink might not be focused
       // when doing a middle-click paste command.
       keyboardSink.focus();
       keyboardSink.textContent = '';
@@ -400,8 +399,8 @@ export function delegateKeyboardEvents(
       keyboardSink.setAttribute('aria-label', value),
 
     setValue: (value: string): void => {
-      keyboardSink.innerText = value;
-      // Move sink offsreen (Safari will display a visible selection otherwise)
+      keyboardSink.textContent = value;
+      // Move sink offscreen (Safari will display a visible selection otherwise)
       keyboardSink.style.top = `-1000px`;
       // Select the elements in the sink (Safari will not enable copy/paste if there isn't a selection)
       window.getSelection()?.selectAllChildren(keyboardSink);

@@ -1,32 +1,20 @@
+import { SelectorPrivate } from 'editor/types';
 import { isArray } from '../common/types';
 
-import {
-  unshiftKeyboardLayer,
-  showVariantsPanel,
-  hideVariantsPanel,
-  VirtualKeyboard,
-} from './virtual-keyboard-utils';
-import { register as registerCommand, SelectorPrivate } from './commands';
-export { unshiftKeyboardLayer };
+import { unshiftKeyboardLayer } from './utils';
+import { hideVariantsPanel } from './variants';
+import { VirtualKeyboard } from './virtual-keyboard';
+import { register } from 'editor/commands';
 
-/*
- * The variants panel is displayed when a keycap on the virtual keyboard is
- * pressed and held.
- *
- */
-registerCommand({ showVariantsPanel }, { target: 'virtual-keyboard' });
-
-export function switchKeyboardLayer(
-  keyboard: VirtualKeyboard,
-  layer: string | null
-): boolean {
-  keyboard.show();
+export function switchKeyboardLayer(layer: string | null): boolean {
+  window.mathVirtualKeyboard.show();
   // If the variants panel was visible, hide it
   hideVariantsPanel();
   // If we were in a temporarily shifted state (shift-key held down)
   // restore our state before switching to a new layer.
-  unshiftKeyboardLayer(keyboard);
-  const layers = keyboard?.element!.querySelectorAll('.MLK__layer');
+  unshiftKeyboardLayer();
+  const layers =
+    VirtualKeyboard.singleton?.element!.querySelectorAll('.MLK__layer');
   // Search for the requested layer
   let found = false;
   for (const layer_ of layers) {
@@ -46,15 +34,16 @@ export function switchKeyboardLayer(
     }
   }
 
-  keyboard.focusMathfield();
+  VirtualKeyboard.singleton.focus();
 
   return true;
 }
 
-export function shiftKeyboardLayer(keyboard: VirtualKeyboard): boolean {
-  const keycaps = keyboard?.element!.querySelectorAll<HTMLElement>(
-    '.MLK__layer.is-visible .MLK__keycap, .MLK__layer.is-visible .action'
-  );
+export function shiftKeyboardLayer(): boolean {
+  const keycaps =
+    VirtualKeyboard.singleton?.element!.querySelectorAll<HTMLElement>(
+      '.MLK__layer.is-visible .MLK__keycap, .MLK__layer.is-visible .action'
+    );
   if (keycaps) {
     for (const keycap of keycaps) {
       // If there's already an unshiftedContent attribute, we're already in
@@ -66,7 +55,7 @@ export function shiftKeyboardLayer(keyboard: VirtualKeyboard): boolean {
         keycap.dataset.unshiftedContent = keycap.innerHTML;
         if (!shiftedContent) shiftedContent = keycap.innerHTML.toUpperCase();
 
-        keycap.innerHTML = keyboard.options.createHTML(shiftedContent);
+        keycap.innerHTML = window.MathfieldElement.createHTML(shiftedContent);
         const command = keycap.getAttribute('data-command');
         if (command) {
           keycap.dataset.unshiftedCommand = command;
@@ -91,86 +80,78 @@ export function shiftKeyboardLayer(keyboard: VirtualKeyboard): boolean {
  * Temporarily change the labels and the command of the keys
  * (for example when a modifier key is held down.)
  */
-registerCommand(
+register(
   {
     shiftKeyboardLayer,
   },
   { target: 'virtual-keyboard' }
 );
 
-export function performVariant(
-  keyboard: VirtualKeyboard,
+function performVariant(
   command: SelectorPrivate | [SelectorPrivate, ...any[]]
 ): boolean {
   hideVariantsPanel();
-  return keyboard.executeCommand(command);
+  return window.mathVirtualKeyboard.executeCommand(command);
 }
 
-export function insertAndUnshiftKeyboardLayer(
-  keyboard: VirtualKeyboard,
-  c: string
-): boolean {
-  keyboard.executeCommand(['insert', c]);
-  unshiftKeyboardLayer(keyboard);
+function insertAndUnshiftKeyboardLayer(c: string): boolean {
+  window.mathVirtualKeyboard.executeCommand(['insert', c]);
+  unshiftKeyboardLayer();
   return true;
 }
 
-registerCommand(
+register(
   {
-    hideVariantsPanel: () => hideVariantsPanel(),
-
     /*
      * The command invoked when a variant key is pressed:
      * hide the Variants panel, then perform the command.
      */
     performVariant,
-    switchKeyboardLayer: (keyboard: VirtualKeyboard, layer) =>
-      switchKeyboardLayer(keyboard, layer),
-    unshiftKeyboardLayer: (keyboard: VirtualKeyboard) =>
-      unshiftKeyboardLayer(keyboard),
+    switchKeyboardLayer: (layer) => switchKeyboardLayer(layer),
+    unshiftKeyboardLayer: () => unshiftKeyboardLayer(),
     insertAndUnshiftKeyboardLayer,
   },
   { target: 'virtual-keyboard' }
 );
 
-export function toggleVirtualKeyboardShift(keyboard: VirtualKeyboard): boolean {
-  keyboard.options.virtualKeyboardLayout = {
+function toggleVirtualKeyboardShift(): boolean {
+  const kbd = VirtualKeyboard.singleton;
+  kbd.alphabeticLayout = {
     qwerty: 'azerty',
 
     azerty: 'qwertz',
     qwertz: 'dvorak',
     dvorak: 'colemak',
     colemak: 'qwerty',
-  }[keyboard.options.virtualKeyboardLayout];
-  const layer =
-    keyboard?.element?.querySelector('.MLK__layer.is-visible')?.id ?? '';
-  if (keyboard) keyboard.disable();
+  }[kbd.alphabeticLayout];
+  const layer = kbd?.element?.querySelector('.MLK__layer.is-visible')?.id ?? '';
 
-  keyboard.show();
-  if (layer) switchKeyboardLayer(keyboard, layer);
+  kbd.show();
+  if (layer) switchKeyboardLayer(layer);
 
   return false;
 }
 
 /** Toggle the virtual keyboard, but switch another keyboard layout */
-registerCommand({ toggleVirtualKeyboardShift }, { target: 'virtual-keyboard' });
+register({ toggleVirtualKeyboardShift }, { target: 'virtual-keyboard' });
 
-function toggleVirtualKeyboard(keyboard: VirtualKeyboard): boolean {
-  if (keyboard.visible) keyboard.hide();
-  else keyboard.show();
+function toggleVirtualKeyboard(): boolean {
+  const kbd = window.mathVirtualKeyboard;
+  if (kbd.visible) kbd.hide();
+  else kbd.show();
 
   return false;
 }
 
-registerCommand(
+register(
   {
     toggleVirtualKeyboard,
-    hideVirtualKeyboard: (keyboard) => {
-      keyboard.hide();
+    hideVirtualKeyboard: () => {
+      window.mathVirtualKeyboard.hide();
       return false;
     },
-    showVirtualKeyboard: (keyboard) => {
-      keyboard.show();
+    showVirtualKeyboard: () => {
+      window.mathVirtualKeyboard.show();
       return false;
     },
   },

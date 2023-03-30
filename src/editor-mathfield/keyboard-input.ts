@@ -1,7 +1,4 @@
 import type { Selector } from '../public/commands';
-import { ParseMode, Style } from '../public/core';
-
-import { canVibrate } from '../common/capabilities';
 
 import { splitGraphemes } from '../core/grapheme-splitter';
 import { Atom } from '../core/atom';
@@ -12,7 +9,7 @@ import {
 } from '../editor/keyboard';
 import { getInlineShortcut } from '../editor/shortcuts';
 import { getCommandForKeybinding } from '../editor/keybindings';
-import { HAPTIC_FEEDBACK_DURATION, SelectorPrivate } from '../editor/commands';
+import { SelectorPrivate } from '../editor/commands';
 import {
   getActiveKeyboardLayout,
   validateKeyboardLayout,
@@ -29,6 +26,7 @@ import { removeIsolatedSpace, smartMode } from './smartmode';
 import { showKeystroke } from './keystroke-caption';
 import { ModeEditor } from './mode-editor';
 import { insertSmartFence } from './mode-editor-math';
+import type { Style, ParseMode } from '../mathlive';
 
 /**
  * Handler in response to a keystroke event.
@@ -96,7 +94,7 @@ export function onKeystroke(
   // would match a long shortcut (i.e. '~~')
   // Ignore the key if Command or Control is pressed (it may be a keybinding,
   // see 4.3)
-  if (!mathfield.promptSelectionLocked) {
+  if (mathfield.isSelectionEditable) {
     if (mathfield.mode === 'math') {
       if (keystroke === '[Backspace]') {
         // Special case for backspace to correctly handle undoing
@@ -229,7 +227,7 @@ export function onKeystroke(
       return result;
     }
 
-    if (mathfield.mode === 'math') {
+    if ((!selector || keystroke === '[Space]') && mathfield.mode === 'math') {
       //
       // 4.5 If this is the Space bar and we're just before or right after
       // a text zone, or if `mathModeSpace` is enabled, insert the space
@@ -263,6 +261,7 @@ export function onKeystroke(
           mathfield.snapshot();
           ModeEditor.insert('text', model, ' ');
           mathfield.dirty = true;
+          mathfield.scrollIntoView();
           return true;
         }
       }
@@ -272,7 +271,7 @@ export function onKeystroke(
       //
       if (
         model.at(model.position)?.isDigit() &&
-        mathfield.options.decimalSeparator === ',' &&
+        window.MathfieldElement.decimalSeparator === ',' &&
         eventToChar(evt) === ','
       )
         selector = 'insertDecimalSeparator';
@@ -362,14 +361,21 @@ export function onKeystroke(
           format: 'latex',
           style,
         });
+
         // Check if as a result of the substitution there is now an isolated
         // (text mode) space (surrounded by math). In which case, remove it.
+
         removeIsolatedSpace(mathfield.model);
+
         // Switch (back) to text mode if the shortcut ended with a space
         if (shortcut!.endsWith(' ')) {
           mathfield.mode = 'text';
           ModeEditor.insert('text', model, ' ', { style });
         }
+
+        // If as a result of the substitution the selection is not collapsed,
+        // the substitution inserted a place holder. Reset the buffer.
+        if (!model.selectionIsCollapsed) mathfield.flushInlineShortcutBuffer();
 
         return true; // Content changed
       }
@@ -416,7 +422,7 @@ export function onInput(
   }
 ): void {
   const { model } = mathfield;
-  if (mathfield.promptSelectionLocked) {
+  if (!mathfield.isSelectionEditable) {
     model.announce('plonk');
     return;
   }
@@ -427,12 +433,7 @@ export function onInput(
   //
   if (options.focus) mathfield.focus();
 
-  if (options.feedback) {
-    if (mathfield.options.keypressVibration && canVibrate())
-      navigator.vibrate(HAPTIC_FEEDBACK_DURATION);
-
-    mathfield.playSound('keypress');
-  }
+  if (options.feedback) window.MathfieldElement.playSound('keypress');
 
   //
   // 2/ Switch mode if requested

@@ -1,6 +1,5 @@
+import type { ParseMode, Style } from './core-types';
 import { Selector } from './commands';
-import { CombinedVirtualKeyboardOptions, MathfieldOptions } from './options';
-import { ParseMode, Style } from './core';
 
 /**
  *
@@ -140,63 +139,8 @@ export type Selection = {
   direction?: 'forward' | 'backward' | 'none';
 };
 
-/**
- * This interface is implemented by:
- * - `VirtualKeyboard`
- * - `VirtualKeyboardDelegate` (used when the virtual keyboard is shared amongst
- * mathfield instances)
- * - `RemoteVirtualKeyboard` (the shared virtual keyboard instance)
- */
-export interface VirtualKeyboardInterface {
-  visible: boolean;
-  height: number;
-
-  /** Called once when the keyboard is created */
-  create(): void;
-
-  /** After calling dispose() the Virtual Keyboard is no longer valid and
-   * cannot be brought back. Use disable() to temporarily deactivate the
-   * keyboard. */
-  dispose(): void;
-
-  executeCommand(command: string | [string, ...any[]]): boolean;
-
-  show(): void;
-  hide(): void;
-
-  focusMathfield(): void;
-  blurMathfield(): void;
-
-  /** When enabled the virtual keyboard interacts with the focused mathfield.
-   * When disabled, the virtual keyboard does not respond to messages from
-   * mathfields.
-   */
-  enable(): void;
-  disable(): void;
-
-  /** The content or selection of the mathfield has changed and the toolbar
-   * may need to be updated accordingly
-   */
-  updateToolbar(mf: Mathfield): void;
-
-  stateWillChange(visible: boolean): boolean;
-  stateChanged(): void;
-
-  setOptions(options: CombinedVirtualKeyboardOptions): void;
-
-  readonly boundingRect: DOMRect;
-}
-
 export interface Mathfield {
   mode: ParseMode;
-
-  getOptions(): MathfieldOptions;
-  getOptions<K extends keyof MathfieldOptions>(
-    keys: K[]
-  ): Pick<MathfieldOptions, K>;
-  getOption<K extends keyof MathfieldOptions>(key: K): MathfieldOptions[K];
-
-  setOptions(options: Partial<MathfieldOptions>): void;
 
   /**
    * Execute a [[`Commands`|command]] defined by a selector.
@@ -321,14 +265,15 @@ import "https://unpkg.com/@cortex-js/compute-engine?module";
   setCaretPoint(x: number, y: number): boolean;
 
   /**
-   * Return a nested mathfield element that match the provided `placeholderId`
-   * @param placeholderId
+   * Return the content of the `\placeholder{}` command with the `placeholderId`
    */
-  getPromptContent(placeholderId: string): string;
+  getPromptValue(placeholderId: string): string;
 
-  get prompts(): string[];
-
-  virtualKeyboardState: 'visible' | 'hidden';
+  getPrompts(filter?: {
+    id?: string;
+    locked?: boolean;
+    correctness?: 'correct' | 'incorrect' | 'undefined';
+  }): string[];
 }
 
 export interface Model {

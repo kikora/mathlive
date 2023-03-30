@@ -1,5 +1,7 @@
 import { ContentChangeOptions } from '../public/options';
 import { ModelPrivate } from './model-private';
+import '../virtual-keyboard/global';
+import { makeProxy } from '../virtual-keyboard/mathfield-proxy';
 
 export type ModelListeners = {
   onSelectionDidChange: (sender: ModelPrivate) => void;
@@ -14,7 +16,7 @@ export function selectionDidChange(model: ModelPrivate): void {
     model.listeners.onSelectionDidChange(model);
     model.suppressChangeNotifications = false;
   }
-  model.mathfield.virtualKeyboard?.updateToolbar(model.mathfield);
+  window.mathVirtualKeyboard.updateToolbar(makeProxy(model.mathfield));
 }
 
 export function contentWillChange(

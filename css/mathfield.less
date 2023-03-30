@@ -51,7 +51,7 @@
 }
 
 .ML__container {
-  display: flex;
+  display: inline-flex;
   flex-flow: row;
   justify-content: space-between;
   align-items: flex-end;
@@ -80,17 +80,17 @@
   --ML__placeholder-color: hsl(var(--hue, 212), 40%, 49%);
 }
 
-@media (prefers-color-scheme: dark) {
-  .ML__container {
-    --ML__selection-background-color: hsl(var(--hue, 212), 25%, 45%);
-    --ML__text-highlight-background-color: hsla(var(--hue, 212), 40%, 50%, 0.2);
-    --ML__contains-highlight-background-color: hsl(var(--hue, 212), 5%, 34%);
-    --ML__caret-color: hsl(var(--hue, 212), 60%, 69%);
-    --ML__latex-color: var(--primary, hsl(var(--hue, 212), 40%, 50%));
+// @media (prefers-color-scheme: dark) {
+//   .ML__container {
+//     --ML__selection-background-color: hsl(var(--hue, 212), 25%, 45%);
+//     --ML__text-highlight-background-color: hsla(var(--hue, 212), 40%, 50%, 0.2);
+//     --ML__contains-highlight-background-color: hsl(var(--hue, 212), 5%, 34%);
+//     --ML__caret-color: hsl(var(--hue, 212), 60%, 69%);
+//     --ML__latex-color: var(--primary, hsl(var(--hue, 212), 40%, 50%));
 
-    --ML__placeholder-color: hsl(var(--hue, 212), 60%, 69%);
-  }
-}
+//     --ML__placeholder-color: hsl(var(--hue, 212), 60%, 69%);
+//   }
+// }
 
 /* This is the actual field content (formula) */
 .ML__content {
@@ -104,47 +104,42 @@
 }
 
 .ML__virtual-keyboard-toggle {
-  display: none;
   box-sizing: border-box;
+  display: flex;
+  align-self: center;
+  align-items: center;
+  flex-shrink: 0;
+  flex-direction: column;
+  justify-content: center;
+
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  margin-right: 4px;
+  cursor: pointer;
+  /* Avoid some weird blinking with :hover */
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: background 0.2s cubic-bezier(0.64, 0.09, 0.08, 1);
+  color: var(--primary, hsl(var(--hue, 212), 40%, 50%));
+  fill: currentColor;
+  background: transparent;
+
+  &:hover {
+    background: hsla(0, 0%, 70%, 0.3);
+    color: #333;
+    fill: currentColor;
+    // border: 1px solid rgba(255, 255, 255, .5)
+    // border: 1px solid rgba(255, 255, 255, .9);
+    // box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+    //     0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
+  }
   & > span {
     display: flex;
     align-self: center;
     align-items: center;
   }
-  &.is-visible {
-    display: flex;
-    align-self: center;
-    align-items: center;
-    flex-shrink: 0;
-    flex-direction: column;
-    justify-content: center;
-
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    margin-right: 4px;
-    cursor: pointer;
-    /* Avoid some weird blinking with :hover */
-    border-radius: 8px;
-    border: 1px solid transparent;
-    transition: background 0.2s cubic-bezier(0.64, 0.09, 0.08, 1);
-    color: var(--primary, hsl(var(--hue, 212), 40%, 50%));
-    fill: currentColor;
-    background: transparent;
-
-    &:hover {
-      background: hsla(0, 0%, 70%, 0.5);
-      color: #333;
-      fill: currentColor;
-      border-radius: 8px;
-      // border: 1px solid rgba(255, 255, 255, .5)
-      // border: 1px solid rgba(255, 255, 255, .9);
-      // box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
-      //     0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
-    }
-  }
 }
-
 /* The invisible element used to capture keyboard events. We're just trying
  really hard to make sure it doesn't show. */
 .ML__keyboard-sink {
@@ -166,10 +161,6 @@
   font-size: 1em;
   font-family: KaTeX_Main;
 }
-
-// .ML__keyboardSink:focus {
-//   background: #ce2029;
-// }
 
 .ML__focused .ML__text {
   background: var(--highlight-text, var(--ML__text-highlight-background-color));
@@ -322,6 +313,7 @@ with this style */
     z-index: 2;
 
     right: 110%;
+    left: calc(100% + 8px);
     width: max-content;
     max-width: 200px;
     padding: 8px 8px;

@@ -1,4 +1,3 @@
-import { ParseMode } from '../public/core';
 import { register as registerCommand } from '../editor/commands';
 import { complete } from './autocomplete';
 import type { MathfieldPrivate } from './mathfield-private';
@@ -6,6 +5,7 @@ import { onInput } from './keyboard-input';
 import { toggleKeystrokeCaption } from './keystroke-caption';
 import { contentDidChange, contentWillChange } from '../editor-model/listeners';
 import { requestUpdate } from './render';
+import { ParseMode } from '../public/core-types';
 
 registerCommand({
   undo: (mathfield: MathfieldPrivate) => {
@@ -55,7 +55,7 @@ registerCommand({
   insertDecimalSeparator: (mathfield: MathfieldPrivate) => {
     if (
       mathfield.mode === 'math' &&
-      mathfield.options.decimalSeparator === ','
+      window.MathfieldElement.decimalSeparator === ','
     ) {
       const model = mathfield.model;
       const child = model.at(Math.max(model.position, model.anchor));
@@ -89,7 +89,11 @@ registerCommand(
       // copying it.
       if (mathfield.model.selectionIsCollapsed) mathfield.select();
 
-      if (document.queryCommandSupported('copy')) document.execCommand('copy');
+      if (
+        'queryCommandSupported' in document &&
+        document.queryCommandSupported('copy')
+      )
+        document.execCommand('copy');
       else {
         mathfield.element!.querySelector('.ML__keyboard-sink')!.dispatchEvent(
           new ClipboardEvent('copy', {
@@ -104,7 +108,11 @@ registerCommand(
     cutToClipboard: (mathfield: MathfieldPrivate) => {
       mathfield.focus();
 
-      if (document.queryCommandSupported('cut')) document.execCommand('cut');
+      if (
+        'queryCommandSupported' in document &&
+        document.queryCommandSupported('cut')
+      )
+        document.execCommand('cut');
       else {
         mathfield.element!.querySelector('.ML__keyboard-sink')!.dispatchEvent(
           new ClipboardEvent('cut', {
@@ -118,7 +126,10 @@ registerCommand(
 
     pasteFromClipboard: (mathfield: MathfieldPrivate) => {
       mathfield.focus();
-      if (document.queryCommandSupported('paste'))
+      if (
+        'queryCommandSupported' in document &&
+        document.queryCommandSupported('paste')
+      )
         document.execCommand('paste');
       else {
         navigator.clipboard.readText().then((text) => {

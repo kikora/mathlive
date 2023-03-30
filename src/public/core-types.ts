@@ -1,3 +1,40 @@
+export type MathstyleName =
+  | 'displaystyle'
+  | 'textstyle'
+  | 'scriptstyle'
+  | 'scriptscriptstyle';
+
+export type NormalizedMacroDictionary = Record<string, MacroDefinition>;
+
+export type ArgumentType =
+  | ParseMode
+  | (
+      | 'bbox'
+      | 'colspec' // Formating of a column in tabular environment, e.g. `"r@{.}l"`
+      | 'delim'
+      | 'dimen' // `"25mu"`, `"2pt"`
+      | 'number' // `+/-12.56` (and some more exotic, like `"CAFE`, `'0808`...)
+      | 'rest' // `{\foo \textsize ...}` to capture "..."
+      | 'glue' // `"25mu plus 2em minus fiLll"`, `"2pt"`
+      | 'string' // The string will end on the first non-literal token, e.g. `<}>`
+      | 'balanced-string' // Delimiter is a balanced closing brace
+      | 'auto'
+    );
+
+// The 'special' tokens must be of length > 1 to distinguish
+// them from literals.
+// '<space>': whitespace
+// '<$$>'   : display math mode shift
+// '<$>'    : inline math mode shift
+// '<{>'    : begin group
+// '<}>'    : end group
+// '#0'-'#9': argument
+// '#?'     : placeholder
+// '\' + ([a-zA-Z\*]+)|([^a-zAz\*])  : command
+// other (length = 1)   : literal
+//  See: [TeX:289](http://tug.org/texlive/devsrc/Build/source/texk/web2c/tex.web)
+export type Token = string;
+
 /**
  * The mode that indicates how a portion of content is interpreted
  *
@@ -227,11 +264,7 @@ export type Registers = Record<string, RegisterValue>;
  *
  * For example:
 ```javascript
-mf.setOptions({
-    macros: {
-        smallfrac: '^{#1}\\!\\!/\\!_{#2}',
-    },
-});
+mf.macros = { smallfrac: "^{#1}\\!\\!/\\!_{#2}" };
 ```
 The code above will support the following notation:
 ```latex
@@ -244,3 +277,34 @@ export type MacroDictionary = Record<
   string,
   string | Partial<MacroDefinition> | MacroPackageDefinition
 >;
+
+export type BoxCSSProperties =
+  | 'background-color'
+  | 'border'
+  | 'border-bottom'
+  | 'border-color'
+  | 'border-left'
+  | 'border-radius'
+  | 'border-right'
+  | 'border-right-width'
+  | 'border-top'
+  | 'border-top-width'
+  | 'box-sizing'
+  | 'color'
+  | 'display'
+  | 'font-family'
+  | 'left'
+  | 'font-size'
+  | 'height'
+  | 'line-height'
+  | 'margin'
+  | 'margin-top'
+  | 'margin-left'
+  | 'margin-right'
+  | 'opacity'
+  | 'padding'
+  | 'position'
+  | 'top'
+  | 'vertical-align'
+  | 'width'
+  | 'z-index';

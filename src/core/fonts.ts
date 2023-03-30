@@ -12,9 +12,18 @@ function makeFontFace(
   );
 }
 
-export async function loadFonts(fontsDirectory?: string): Promise<void> {
+export let gFontsState: 'error' | 'not-loaded' | 'loading' | 'ready' =
+  'not-loaded';
+
+export async function reloadFonts(): Promise<void> {
+  gFontsState = 'not-loaded';
+  return loadFonts();
+}
+
+export async function loadFonts(): Promise<void> {
   // If we're already loading the fonts, we're done.
-  if (document.body.classList.contains('ML__fonts-loading')) return;
+  if (gFontsState !== 'not-loaded') return;
+  gFontsState = 'loading';
 
   // If the "mathlive-fonts.css" stylesheet is included in the <head> of the
   // page, it will include a `--ML__static-fonts` variable.
@@ -24,7 +33,10 @@ export async function loadFonts(fontsDirectory?: string): Promise<void> {
       '--ML__static-fonts'
     ) ?? false;
 
-  if (useStaticFonts) return;
+  if (useStaticFonts) {
+    gFontsState = 'ready';
+    return;
+  }
 
   document.body.classList.remove('ML__fonts-did-not-load');
 
@@ -45,15 +57,23 @@ export async function loadFonts(fontsDirectory?: string): Promise<void> {
     ];
 
     const fontsInDocument = Array.from(document.fonts).map((f) => f.family);
-    if (fontFamilies.every((x) => fontsInDocument.includes(x))) return;
+    if (fontFamilies.every((x) => fontsInDocument.includes(x))) {
+      gFontsState = 'ready';
+      return;
+    }
 
-    document.body.classList.add('ML__fonts-loading');
+    if (!window.MathfieldElement.fontsDirectory) {
+      gFontsState = 'not-loaded';
+      return;
+    }
 
     // Locate the `fonts` folder relative to the script URL
-    const fontsFolder = await resolveUrl(fontsDirectory ?? './fonts');
+    const fontsFolder = await resolveUrl(
+      window.MathfieldElement.fontsDirectory
+    );
     if (!fontsFolder) {
       document.body.classList.add('ML__fonts-did-not-load');
-      document.body.classList.remove('ML__fonts-loading');
+      gFontsState = 'error';
       return;
     }
 
@@ -99,16 +119,17 @@ export async function loadFonts(fontsDirectory?: string): Promise<void> {
       )) as unknown as FontFace[];
       // Render them at the same time
       loadedFonts.forEach((font) => document.fonts.add(font));
+      gFontsState = 'ready';
+      return;
     } catch (error: unknown) {
       console.error(
-        `The MathLive fonts could not be loaded from "${fontsFolder}"`,
+        `MathLive {{SDK_VERSION}}: The math fonts could not be loaded from "${fontsFolder}"`,
         { cause: error }
       );
       document.body.classList.add('ML__fonts-did-not-load');
     }
 
-    // Event if an error occur, give up and pretend the fonts are
-    // loaded (displaying something is better than nothing)
-    document.body.classList.remove('ML__fonts-loading');
+    // If an error occurs, give up
+    gFontsState = 'error';
   }
 }

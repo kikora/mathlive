@@ -1,57 +1,340 @@
-## [Unreleased]
+## 0.90.9 (2023-03-28)
+
+### Bug Fixed
+
+- **#1890** Attempt to fix a remaining Typescript declaration issue when using
+  MathLive without the Compute Engine
+
+## 0.90.8 (2023-03-27)
+
+### Bugs Fixed
+
+- **#1830** The keybinding to toggle text mode (alt+") could not be used on some
+  keyboard layouts. Added shift+alt+T as a keybinding to switch to text mode.
+- **#1830** In some cases, the placeholder inside an inline shortcut would not
+  get selected when inserted.
+- **#1890** The Typescript declaration files included references to non-public
+  files. This has been fixed, and some test cases have been added to prevent
+  these errors in the future.
+- On iPadOS, making a vertical swipe motion on certain areas of the virtual
+  keyboard would result in a scrolling of the document.
+
+### Improvements
+
+- The default `originValidator` policy which controls the messaging between a
+  mathfield and the virtual keyboard is now `"none"` by default. This provides
+  no check or validation when sending messages between a main document and
+  embedded iframes. To use the previous, more secure, policy, set the
+  `originValidator` property of the `mathVirtualKeyboard` and any mathfield to
+  `"same-origin"`.
+
+## 0.90.7 (2023-03-24)
+
+### Bug Fixed
+
+- **#1861** In Firefox, an apparently focused mathfield would not always accept
+  keyboard input.
+
+## 0.90.6 (2023-03-23)
+
+### Bug Fixes
+
+- **#1881**, **#1883** Fixed issues with TypeScript declarations of public
+  interface
+- In some cases a horizontal scrollbar would appear in the virtual keyboard
+- **#1884** `mf.setPromptValue()` could cause runtime errors
+- In some cases, using `mf.insert()` to replace a selection would do nothing
+- Some mathfield properties (for example `mf.macros`) were missing.
+
+## 0.90.0 (2023-03-19)
 
 ### Breaking Changes
 
+This release contains several breaking changes. As much as possible I try to
+avoid introducing breaking changes, but there was an accumulation of issues that
+required some breaking change and I figured I would introduce them all at once:
+
+- the use case where a page had several mathfields was not handled well. Several
+  configuration options were effectively shared, yet each mathfield had its own
+  idea of what the setting was. There were also several duplicate ways of
+  configuring a mathfield, which was confusing.
+- the virtual keyboard was awkward to use and configure with multiple
+  mathfields. The virtual keyboard API was also attached to mathfield instances,
+  instead of the virtual keyboard being its own entity.
+- Fill-in-the-blank is a popular feature, but its current implementation had
+  some limitations. Thanks to a contributed new implementation, those
+  limitations have been removed, and the API to handle fill-in-the-blank has
+  been adjusted accordingly.
+
 #### Fill-in-the-blank
 
-- New implementation of `\placeholder` command for "fill-in-the-blank" feature.
-  Instead of each placeholder being an embedded mathfield, the placeholders are
-  now special editable regions of a read-only mathfield. This improves their
-  layout (for example a placeholder numerator is now displayed at the correct
-  size) and simplify their interaction. When used as a "fill-in-the-blank", set
-  the mathfield to readonly, and specify an ID with the placeholder, i.e.
-  `\placeholder[id]{value}`. In this situation these placeholders are called
-  "prompts".
+- New implementation of the `\placeholder{}` command for "fill-in-the-blank"
+  feature. Thank you to James Mullen (https://github.com/wildyellowfin) for this
+  contribution.
+
+  Previously, each placeholder was an embedded mathfield inside a "root"
+  mathfield. The placeholders are now special editable regions of a read-only
+  mathfield.
+
+  This improves their layout (for example a placeholder numerator is now
+  displayed at the correct size) and simplify their interaction. When used as a
+  "fill-in-the-blank", set the mathfield to readonly, and specify an ID with the
+  placeholder, i.e. `\placeholder[id]{value}`. In this situation these
+  placeholders are called "prompts".
+
 - The `mf.getPlaceholderField()` function has been replaced with
-  `mf.getPromptContent()`
-- Use `mf.setPromptContent()` to change the content of a prompt.
-- Use `mf.prompts` to get an array of the content of all the prompts in the
+  `mf.getPromptValue()`
+- Use `mf.setPromptValue()` to change the content of a prompt.
+- Use `mf.getPrompts()` to get an array of the ids of all the prompts in the
   expression.
 - Prompts can be either in a correct, incorrect or indeterminate state. In
   correct or incorrect state, their appearance changes to reflect their state.
-  Use `mf.setPromptCorrectness()` to flag a prompt as being correct or
-  incorrect.
-- Use `mf.setPromptLocked()` to mark a prompt as no longer being editable.
+  Use `mf.setPromptState()` to flag a prompt as being correct or incorrect.
+  `mf.setPromptState()` can also be used to mark a prompt as no longer being
+  editable.
 
 #### Virtual Keyboard
 
-- The MathLive virtual keyboard API has changed to be consisten with the
+- Previously the virtual keyboard was shared amongst mathfield instances if the
+  `makeSharedVirtualKeyboard()` function was called or the
+  `use-shared-virtual-keyboard` attribute was set on a mathfield. Otherwise a
+  virtual keyboard instance was created for each mathfield in the document.
+
+  The virtual keyboard is now always shared.
+
+  The virtual keyboard global instance can be accessed as
+  `window.mathVirtualKeyboard` or just `mathVirtualKeyboard`. Its value
+  implements `VirtualKeyboardInterface` instance, same as was previously
+  returned by `makeSharedVirtualKeyboard()`.
+
+- The options related to the virtual keyboard should now be set on the global
+  shared virtual keyboard, using `window.mathVirtualKeyboard` instead of on
+  mathfield instances.
+
+- The MathLive virtual keyboard API (offered by the `window.mathVirtualKeyboard`
+  property) has changed to be consistent with the
   [W3C Virtual Keyboard](https://www.w3.org/TR/virtual-keyboard/) API.
 
   This includes adding a `show()` and `hide()` functions, and a `boundingRect`
-  property.
+  property to `VirtualKeyboardInterface`.
 
-  In addition, the `virtualKeyboardMode` property is now called
-  `mathVirtualKeyboardPolicy` and can take a value of `"auto"` or `"manual"`.
+  A `geometrychange` event is dispatched when the size of the keyboard changes.
 
-  A value of `"manual"` corresponds to a `virtualKeyboardMode` value of `"off"`,
-  that is the virtual keyboard is not displayed automatically and must be
-  displayed programmatically.
+  In addition, the `MathfieldElement.virtualKeyboardMode` property is now called
+  `MathfieldElement.mathVirtualKeyboardPolicy` and can take a value of `"auto"`
+  or `"manual"`.
 
-  The value of `"onfocus"` is no longer supported. To implement this behavior,
-  listen for a `"focus"` or `"blur"` even on the relevant mathfield and call
-  `mathVirtualKeyboard.show()` or `mathVirtualKeyboard.hide()` as needed.
+  A value of `"manual"` corresponds to the previous `virtualKeyboardMode` value
+  of `"off"`, that is the virtual keyboard is not displayed automatically and
+  must be displayed programmatically.
+
+  The value `"onfocus"` is no longer supported. To implement the behavior
+  previously provided by this value:
+
+  ```js
+  mf.addEventListener('focusin', () => mathVirtualKeyboard.show());
+  ```
 
   If `mathVirtualKeyboardPolicy` is set to `"auto"` the virtual keyboard is
   displayed automatically when a mathfield is focused on a touch-enabled device.
 
-  The virtual keyboard toggle
+- The virtual keyboard customization API has been simplified.
 
-- The virtual keyboard can be accessed as `window.mathVirtualKeyboard`. Its
-  value is a `VirtualKeyboard` instance, same as was previously returned by
-  `makeSharedVirtualKeyboard()`
-- The "alt-keys" are now called "variants". The `data-alt-keys` attribute is now
-  `data-variants`
+**Before:**
+
+```js
+const MINIMAL_LAYER = [
+  minimal: {
+    rows: [
+      [
+        {latex: "+"}, {latex: "-"}, {latex: "\\times"},
+        {latex: "\\frac{#@}{#?}"}, {latex: "="}, {latex: "."},
+        {latex: "("}, {latex: ")"}, {latex: "\\sqrt{#0}"},
+        {latex: "#@^{#?}"}
+      ],
+      [
+        {latex: "1"}, {latex: "2"}, {latex: "3"}, {latex: "4"},
+        {latex: "5"}, {latex: "6"}, {latex: "7"}, {latex: "8"},
+        {latex: "9"}, {latex: "0"},
+      ]
+    ]
+}];
+
+const MINIMAL_KEYBOARD = {
+  'minimal': {
+    label: 'Minimal',
+    layer: 'minimal',
+  },
+};
+
+mf.setOptions({
+  customVirtualKeyboardLayers: MINIMAL_LAYER,
+  customVirtualKeyboards: MINIMAL_KEYBOARD,
+  virtualKeyboards: 'minimal',
+});
+```
+
+**Now:**
+
+```js
+mathVirtualKeyboard.layouts = {
+  rows: [
+    [
+      '+',
+      '-',
+      '\\times',
+      '\\frac{#@}{#?}',
+      '=',
+      '.',
+      '(',
+      ')',
+      '\\sqrt{#0}',
+      '#@^{#?}',
+    ],
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+  ],
+};
+```
+
+To change the alphabetic layout:
+
+**Before:**
+
+```js
+mf.setOptions({ virtualKeyboardLayout: 'azerty' });
+```
+
+**Now:**
+
+```js
+mathVirtualKeyboard.alphabeticLayout = 'azerty';
+```
+
+- The `"roman"` virtual keyboard is now called `"alphabetic"`
+
+- The `virtualKeyboardToolbar` option is now `mathVirtualKeyboard.actionToolbar`
+
+- The `virtualKeyboardContainer` option is now `mathVirtualKeyboard.container`
+
+- The virtual keyboard toggle glyph can no longer be customized.
+
+- The virtual keyboard toggle button is displayed by default if the content of
+  mathfield can be modified.
+
+  The display of the toggle button is independent of the
+  `mathVirtualKeyboardPolicy`.
+
+  Using the `math-field::part(virtual-keyboard-toggle)` CSS selector, a
+  `display: none` CSS attribute can be used to hide the virtual keyboard toggle
+  if desired. To replicate the previous default behavior, where the toggle was
+  displayed on touch-enabled devices, use:
+
+  ```css
+  @media not (pointer: coarse) {
+    math-field::part(virtual-keyboard-toggle) {
+      display: none;
+    }
+  }
+  ```
+
+- The "alt-keys" of the virtual keyboard are now called "variants". The
+  `data-alt-keys` attribute is now `data-variants`
+
+#### Options
+
+Previously all the options to configure a mathfield could be changed using
+`mf.setOptions({...})`. Some of these options affected a specific mathfield
+instance, while others affected all mathfields on the page.
+
+The options that affect all mathfields are now static properties of the
+`MathfieldElement` global. The options that affect the virtual keyboard are
+properties of the `mathVirtualKeyboard` global singleton. The options specific
+to a mathfield are now properties or attribute of this element.
+
+For example:
+
+**Before:**
+
+```js
+mf.setOptions({ soundsDirectory: null });
+```
+
+**Now:**
+
+```js
+MathfieldElement.soundsDirectory = null;
+```
+
+| Before                                              | Now                                                                          |
+| :-------------------------------------------------- | :--------------------------------------------------------------------------- |
+| `mf.setOptions({defaultMode: ...})`                 | `mf.defaultMode = ...`                                                       |
+| `mf.setOptions({letterShapeStyle: ...})`            | `mf.letterShapeStyle = ...`                                                  |
+| `mf.setOptions({horizontalSpacingScale: ...})`      | Removed. Use `"thinmuskip"`, `"medmuskip"`, and `"thickmuskip"` registers ', |
+| `mf.setOptions({macros: ...})`                      | `mf.macros = ...`                                                            |
+| `mf.setOptions({registers: ...})`                   | `mf.registers = ...`                                                         |
+| `mf.setOptions({backgroundColorMap: ...})`          | `mf.backgroundColorMap = ...`                                                |
+| `mf.setOptions({colorMap: ...})`                    | `mf.colorMap = ...`                                                          |
+| `mf.setOptions({enablePopover: ...})`               | `mf.popoverPolicy = ...`                                                     |
+| `mf.setOptions({mathModeSpace: ...})`               | `mf.mathModeSpace = ...`                                                     |
+| `mf.setOptions({placeholderSymbol: ...})`           | `mf.placeholderSymbol = ...`                                                 |
+| `mf.setOptions({readOnly: ...})`                    | `mf.readOnly = ...`                                                          |
+| `mf.setOptions({removeExtraneousParentheses: ...})` | `mf.removeExtraneousParentheses = ...`                                       |
+| `mf.setOptions({scriptDepth: ...})`                 | `mf.scriptDepth = ...`                                                       |
+| `mf.setOptions({smartFence: ...})`                  | `mf.smartFence = ...`                                                        |
+| `mf.setOptions({smartMode: ...})`                   | `mf.smartMode = ...`                                                         |
+| `mf.setOptions({smartSuperscript: ...})`            | `mf.smartSuperscript = ...`                                                  |
+| `mf.setOptions({inlineShortcutTimeout: ...})`       | `mf.inlineShortcutTimeout = ...`                                             |
+| `mf.setOptions({inlineShortcuts: ...})`             | `mf.inlineShortcuts = ...`                                                   |
+| `mf.setOptions({keybindings: ...})`                 | `mf.keybindings = ...`                                                       |
+| `mf.setOptions({virtualKeyboardMode: ...})`         | `mf.mathVirtualKeyboardPolicy = ...`                                         |
+| `mf.setOptions({customVirtualKeyboardLayers: ...})` | `mathVirtualKeyboard.layers = ...`                                           |
+| `mf.setOptions({customVirtualKeyboards: ...})`      | `mathVirtualKeyboard.layouts = ...`                                          |
+| `mf.setOptions({keypressSound: ...})`               | `mathVirtualKeyboard.keypressSound = ...`                                    |
+| `mf.setOptions({keypressVibration: ...})`           | `mathVirtualKeyboard.keypressVibration = ...`                                |
+| `mf.setOptions({plonkSound: ...})`                  | `mathVirtualKeyboard.plonkSound = ...`                                       |
+| `mf.setOptions({virtualKeyboardContainer: ...})`    | `mathVirtualKeyboard.container = ...`                                        |
+| `mf.setOptions({virtualKeyboardLayout: ...})`       | `mathVirtualKeyboard.alphabeticLayout = ...`                                 |
+| `mf.setOptions({virtualKeyboardTheme: ...})`        | No longer supported                                                          |
+| `mf.setOptions({virtualKeyboardToggleGlyph: ...})`  | No longer supported                                                          |
+| `mf.setOptions({virtualKeyboardToolbar: ...})`      | `mathVirtualKeyboard.actionToolbar = ...`                                    |
+| `mf.setOptions({virtualKeyboards: ...})`            | Use `mathVirtualKeyboard.layouts`                                            |
+| `mf.setOptions({speechEngine: ...})`                | `MathfieldElement.speechEngine`                                              |
+| `mf.setOptions({speechEngineRate: ...})`            | `MathfieldElement.speechEngineRate`                                          |
+| `mf.setOptions({speechEngineVoice: ...})`           | `MathfieldElement.speechEngineVoice`                                         |
+| `mf.setOptions({textToSpeechMarkup: ...})`          | `MathfieldElement.textToSpeechMarkup`                                        |
+| `mf.setOptions({textToSpeechRules: ...})`           | `MathfieldElement.textToSpeechRules`                                         |
+| `mf.setOptions({textToSpeechRulesOptions: ...})`    | `MathfieldElement.textToSpeechRulesOptions`                                  |
+| `mf.setOptions({readAloudHook: ...})`               | `MathfieldElement.readAloudHook`                                             |
+| `mf.setOptions({speakHook: ...})`                   | `MathfieldElement.speakHook`                                                 |
+| `mf.setOptions({computeEngine: ...})`               | `MathfieldElement.computeEngine`                                             |
+| `mf.setOptions({fontsDirectory: ...})`              | `MathfieldElement.fontsDirectory`                                            |
+| `mf.setOptions({soundsDirectory: ...})`             | `MathfieldElement.soundsDirectory`                                           |
+| `mf.setOptions({createHTML: ...})`                  | `MathfieldElement.createHTML`                                                |
+| `mf.setOptions({onExport: ...})`                    | `MathfieldElement.onExport`                                                  |
+| `mf.setOptions({onInlineShortcut: ...})`            | `MathfieldElement.onInlineShortcut`                                          |
+| `mf.setOptions({locale: ...})`                      | `MathfieldElement.locale = ...`                                              |
+| `mf.setOptions({strings: ...})`                     | `MathfieldElement.strings = ...`                                             |
+| `mf.setOptions({decimalSeparator: ...})`            | `MathfieldElement.decimalSeparator = ...`                                    |
+| `mf.setOptions({fractionNavigationOrder: ...})`     | `MathfieldElement.fractionNavigationOrder = ...`                             |
+
+#### Miscellaneous Breaking Changes
+
+- For consistency with `<textarea>` the `<math-field>` tag now has a default
+  display style of "inline". You can change the display style to "block" using a
+  CSS rule.
+- The `<math-field>` tag now has some default styling, including a background
+  and border, consistent with a `<textarea>` element. You can override this
+  styling by defining CSS rules for the `math-field` selector.
+- The previously deprecated option `horizontalSpacingScale`has been removed. It
+  is replaced by the standard TeX registers`\thinmuskip`, `\medmuskip` and
+  `\thickmuskip`.
+- It was previously possible to specify a set of options for a mathfield as a
+  `<script>` tag inside the mathfield, as JSON data structure. This is no longer
+  supported.
+- It was previously possible to supply a custom style sheet to be applied inside
+  the shadow DOM by using a `<style>` tag inside the mathfield. This is no
+  longer supported. Use custom CSS variables or `part` selectors to apply custom
+  styling to the mathfield.
 
 ### Improvements
 
@@ -64,6 +347,23 @@
 - **#1859** In math mode, after pressing the SPACE key, the variant style
   (upright, italic, etc...) from neighboring atoms is not adopted by subsequent
   characters.
+- The `disabled` and `readonly` attributes and the `user-select` CSS property
+  are now consistent with `<textarea>`:
+  - a `readonly` mathfield is still focusable
+  - a `disabled` mathfield is not focusable
+  - The content of a `readonly` or `disabled` mathfield can be selected, unless
+    the `contenteditable` attribute is set to `"false"` and the `user-select`
+    CSS property is set to `"none"`. (fixes **#1136**)
+- A mathfield can be used inline, for example inside a `<p>` element.
+- For consistency with a `<textarea>`, `click` events are not dispatched when a
+  disabled `<math-element>` is clicked.
+- **#1722** The theme applied to the keyboard can be set programmatically by
+  apply a `theme` attribute to the container of the keyboard, for example
+  `<body theme="dark">` or `<body theme="light">`.
+- When a mathfield contains placeholders (or prompts), tabbing at the last
+  placeholder will move to the next focusable element on the page (previously,
+  it would circularly stay inside the current mathfield, with no possibility of
+  escape).
 
 ### Bug Fixes
 
@@ -73,6 +373,12 @@
   caused the expression to be incorrectly balanced
 - **#1858** The spoken representation of the `\pm` command was incorrect
 - **#1856** Displaying the virtual keyboard in a custom container was broken
+- **#1877** Setting options on read-only field was not working
+- **#1771** Incorrect layout of fill-in-the-blank
+- **#1770** `mf.setValue()` did not affect fill-in-the-blank sections
+- **#1736** Layout issues with fill-in-the-blank
+- **#1048** Virtual keyboard inside a custom container is now displayed
+  correctly.
 
 ## 0.89.4 (2023-02-27)
 
@@ -381,7 +687,7 @@ a format on the clipboard,
 - **#1643** Physical units with multiplication are now rendered correctly, e.g.
   `\pu{123 J*s}`.
 
-## New Features
+### New Features
 
 - **#1541** To be notified when the visibility of the virtual keyboard changes
   and using `makeSharedVirtualKeyboard()`, listen for the
@@ -826,7 +1132,7 @@ in order to preserve the same settings, you would now use:
   This change was made because not every LaTeX environment recognize the
   `\mleft...\mright` commands, and this caused interoperability issues.
 
-## New Features
+### New Features
 
 - **Comma `,` as a decimal separator**
 
@@ -1019,6 +1325,12 @@ in order to preserve the same settings, you would now use:
 
 ## 0.69.10 (2022-02-23)
 
+### Features
+
+- Support for the `\htmlStyle` command (feature contributed by @neokazemi)
+- Pressing the `\` key after a trigonometric function will not include the
+  function in the numerator of the fraction.
+
 ### Bug Fixes
 
 - **#1024** `\ne` and `\neq` render correctly (fix contributed by @AceGentile)
@@ -1027,12 +1339,6 @@ in order to preserve the same settings, you would now use:
 - Boxes in `\enclose` command render correctly (fix contributed by @Zahara-Nour
 - **#1357** Alternate (shifted) layers described in the virtual keyboard defined
   with an object literal would not trigger.
-
-# Features
-
-- Support for the `\htmlStyle` command (feature contributed by @neokazemi)
-- Pressing the `\` key after a trigonometric function will not include the
-  function in the numerator of the fraction.
 
 ## 0.69.9 (2022-01-06)
 
@@ -1229,7 +1535,7 @@ or:
 <math-field virtual-keyboard-mode="manual">f(x) = \sin x</math-field>
 ```
 
-## Improvements
+### Improvements
 
 - Added localization for Dutch (contributed by @harrisnl), Bosnian, Croatian,
   Czeck, Danish, Estonian, Finnish, Icelandic, Norwegian, Portuguese, Serbian,
@@ -1244,7 +1550,7 @@ or:
   the `\` key), remove the `\placeholder{}` command.
 - In spoken text, correctly handle `\mathop` and `\operatorname`.
 
-## New Features
+### New Features
 
 - The `getOffsetDepth()` method can be used to query the depth of a specific
   offset. Use `mf.getOffsetDepth(mf.position)` for the depth of the current
@@ -2946,7 +3252,7 @@ They have been broken up as follow:
   - `mathfield-buttons.ts`
 
 Again, this is an internal change that will have no impact for external users of
-the MathLive library, but it will be contribute to improving the maintainability
+the MathLive library, but it will contribute to improving the maintainability
 and velocity of the project.
 
 #### Other Code Maintenance

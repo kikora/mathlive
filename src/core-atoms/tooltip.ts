@@ -1,11 +1,12 @@
-import type { Style } from '../public/core';
+import type { Style } from '../public/core-types';
+import type { GlobalContext } from 'core/types';
 
 import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
-import { Context, GlobalContext } from '../core/context';
-import { defaultGlobalContext } from '../core/context-utils';
+import { Context } from '../core/context';
 import { adjustInterAtomSpacing, Box, coalesce } from '../core/box';
 import { DEFAULT_FONT_SIZE } from '../core/font-metrics';
 import { fromJson } from '../core/atom';
+import { defaultGlobalContext } from '../core/context-utils';
 
 export class TooltipAtom extends Atom {
   tooltip: Atom;
@@ -59,18 +60,17 @@ export class TooltipAtom extends Atom {
     });
     if (!body) return null;
 
+    const tooltipContext = new Context(
+      { registers: context.registers },
+      { fontSize: DEFAULT_FONT_SIZE },
+      'displaystyle'
+    );
     const tooltip = coalesce(
       adjustInterAtomSpacing(
-        new Box(
-          this.tooltip.render(
-            new Context(
-              { registers: context.registers },
-              { fontSize: DEFAULT_FONT_SIZE },
-              'displaystyle'
-            )
-          ),
-          { classes: 'ML__tooltip-content' }
-        )
+        new Box(this.tooltip.render(tooltipContext), {
+          classes: 'ML__tooltip-content',
+        }),
+        tooltipContext
       )
     );
     const box = new Box([tooltip, body], { classes: 'ML__tooltip-container' });

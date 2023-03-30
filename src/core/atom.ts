@@ -1,7 +1,6 @@
 import { isArray } from '../common/types';
 
 import { Atom, AtomJson, AtomType, NAMED_BRANCHES } from './atom-class';
-import { GlobalContext } from './context';
 
 import { AccentAtom } from '../core-atoms/accent';
 import { ArrayAtom } from '../core-atoms/array';
@@ -31,6 +30,7 @@ import { SurdAtom } from '../core-atoms/surd';
 import { TextAtom } from '../core-atoms/text';
 import { TooltipAtom } from '../core-atoms/tooltip';
 import { PromptAtom } from '../core-atoms/prompt';
+import type { GlobalContext } from 'core/types';
 
 export * from './atom-class';
 
@@ -101,7 +101,7 @@ export function fromJson(
         'root',
         'space',
       ].includes(type),
-      `MathLive: an unexpected atom type ("${type}") was encountered. Add new atom constructors to fromJson() in atom.ts`
+      `MathLive {{SDK_VERSION}}: an unexpected atom type "${type}" was encountered. Add new atom constructors to \`fromJson()\` in "atom.ts"`
     );
     result = Atom.fromJson(json, context);
   }

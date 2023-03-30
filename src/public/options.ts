@@ -1,7 +1,7 @@
-import { MacroDictionary, ParseMode, Registers } from './core';
 import type { Mathfield, Range } from './mathfield';
-import { VirtualKeyboardMode } from './mathfield-element';
 import type { Selector } from './commands';
+import type { ParseMode, MacroDictionary, Registers } from './core-types';
+export * from './virtual-keyboard';
 
 /**
  * Specify behavior for origin validation.
@@ -199,315 +199,10 @@ export type InlineShortcutDefinition =
       after?: string;
     };
 
-export type TextToSpeechOptions = {
-  /**
-   * Specify which set of text to speech rules to use.
-   *
-   * A value of `mathlive` indicates that the simple rules built into MathLive
-   * should be used.
-   *
-   * A value of `sre` indicates that the Speech Rule Engine from Volker Sorge
-   * should be used.
-   *
-   * **(Caution)** SRE is not included or loaded by MathLive. For this option to
-   * work SRE should be loaded separately.
-   *
-   * **See**
-   * {@link https://cortexjs.io/mathlive/guides/speech/ | Guide: Speech}
-   */
-  textToSpeechRules: 'mathlive' | 'sre';
-  /**
-   * The markup syntax to use for the output of conversion to spoken text.
-   *
-   * Possible values are `ssml` for the SSML markup or `mac` for the macOS
-   * markup, i.e. `&#91;&#91;ltr&#93;&#93;`.
-   *
-   */
-  textToSpeechMarkup: '' | 'ssml' | 'ssml_step' | 'mac';
-  /**
-   * A set of key/value pairs that can be used to configure the speech rule
-   * engine.
-   *
-   * Which options are available depends on the speech rule engine in use.
-   * There are no options available with MathLive's built-in engine. The
-   * options for the SRE engine are documented
-   * {@link https://github.com/zorkow/speech-rule-engine | here}
-   */
-  textToSpeechRulesOptions: Record<string, string>;
-  /**
-   * Indicates which speech engine to use for speech output.
-   *
-   * Use `local` to use the OS-specific TTS engine.
-   *
-   * Use `amazon` for Amazon Text-to-Speech cloud API. You must include the
-   * AWS API library and configure it with your API key before use.
-   *
-   * **See**
-   * {@link https://cortexjs.io/mathlive/guides/speech/ | Guide: Speech}
-   */
-  speechEngine: 'local' | 'amazon';
-  /**
-   * Indicates the voice to use with the speech engine.
-   *
-   * This is dependent on the speech engine. For Amazon Polly, see here:
-   * https://docs.aws.amazon.com/polly/latest/dg/voicelist.html
-   *
-   */
-
-  speechEngineVoice: string;
-  /**
-   * Sets the speed of the selected voice.
-   *
-   * One of `x-slow`, `slow`, `medium`, `fast`, `x-fast` or a value as a
-   * percentage.
-   *
-   * Range is `20%` to `200%` For example `200%` to indicate a speaking rate
-   * twice the default rate.
-   */
-  speechEngineRate: string;
-  speakHook: (text: string, config: Partial<MathfieldOptions>) => void;
-  readAloudHook: (
-    element: HTMLElement,
-    text: string,
-    config: MathfieldOptions
-  ) => void;
-};
-
-/**
- *
- */
-export interface VirtualKeyboardKeycap {
-  /**
-   * The HTML markup displayed for the keycap
-   */
-  label: string;
-  /**
-   * Command to perform when the keycap is pressed
-   */
-  command:
-    | Selector
-    | string[]
-    | [string, any]
-    | [string, any, any]
-    | [string, any, any, any];
-
-  /**
-   * LaTeX fragment to insert when the keycap is pressed
-   * (ignored if command is specified)
-   */
-  insert: string;
-  /**
-   * Label of the key as a LaTeX expression, also the LaTeX
-   * inserted if no `command` or `insert` property is specified.
-   */
-  latex: string;
-  /**
-   * Key to insert when keycap is pressed
-   * (ignored if `command`, `insert` or `latex` is specified)
-   */
-  key: string;
-
-  /**
-   * CSS classes to apply to the keycap.
-   *
-   * - `tex`: use the TeX font for its label.
-   *    Using the tex class is not necessary if using the latex property to
-   *    define the label.
-   * - `modifier`: a modifier (shift/option, etc…) keycap
-   * - `small`: display the label in a smaller size
-   * - `action`: an “action” keycap (for arrows, return, etc…)
-   * - `separator w5`: a half-width blank used as a separator. Other widths
-   *    include `w15` (1.5 width), `w20` (double width) and `w50` (five-wide,
-   *    used for the space bar).
-   * - `bottom`, `left`, `right`: alignment of the label
-   *
-   */
-  class: string;
-
-  /**
-   * HTML markup to represent the keycap.
-   *
-   * This property is only useful when using a custom keycap shape or appearance.
-   * Usually, setting the `label` property is sufficient.
-   */
-  content: string;
-
-  /**
-   * Markup displayed with the key label (for example to explain what the
-   * symbol of the key is)
-   */
-  aside: string;
-
-  /**
-   * A set of keycap variants displayed on a long press
-   *
-   * ```js
-   * variants: [
-   *  '\\alpha',    // Same label as value inserted
-   *  { latex: '\\beta', label: 'beta' }
-   * ]
-   *
-   * ```
-   */
-  variants: (string | Partial<VirtualKeyboardKeycap>)[];
-
-  /**
-   * Markup for the label of the key when the shift key is pressed
-   */
-  shifted: string;
-  /**
-   * Command to perform when the shifted key is pressed
-   */
-  shiftedCommand: Selector | [Selector, ...any[]];
-
-  /** Name of the layer to shift to when the key is pressed */
-  layer: string;
-}
-
-export interface VirtualKeyboardDefinition {
-  label: string;
-  layer?: string;
-  tooltip?: string;
-  layers?: string[];
-  classes?: string;
-  command?: string | string[];
-}
-
-export interface VirtualKeyboardLayer {
-  /** The CSS stylesheet associated with this layer */
-  styles: string;
-  /** A CSS class name to customize the appearance of the background of the layer */
-  backdrop: string;
-  /** A CSS class name to customize the appearance of the container the layer */
-  container: string;
-  /** The rows of keycaps in this layer */
-  rows: Partial<VirtualKeyboardKeycap>[][];
-}
-
-export type VirtualKeyboardToolbarOptions = 'none' | 'default';
-
-export type VirtualKeyboardOptions = {
-  /**
-   * A space separated list of the keyboards that should be available. The
-   * keyboard `"all"` is synonym with `"numeric"`, `"functions"``, `"symbols"``
-   * `"roman"` and `"greek"`,
-   *
-   * The keyboards will be displayed in the order indicated.
-   */
-  virtualKeyboards:
-    | 'all'
-    | 'numeric'
-    | 'roman'
-    | 'greek'
-    | 'functions'
-    | 'symbols'
-    | 'latex'
-    | string;
-  virtualKeyboardLayout:
-    | 'auto'
-    | 'qwerty'
-    | 'azerty'
-    | 'qwertz'
-    | 'dvorak'
-    | 'colemak';
-  /**
-   * Custom virtual keyboard layers.
-   *
-   * A keyboard is made up of one or more layers (think of the main layer and the
-   * shift layer on a hardware keyboard). Each key in this object define a new
-   * keyboard layer (or replace an existing one). The value of the key should be
-   * some HTML markup.
-   *
-   * **See* {@link https://cortexjs.io/mathlive/guides/virtual-keyboards | Guide: Virtual Keyboards}
-   *
-   *
-   */
-  customVirtualKeyboardLayers: Record<
-    string,
-    string | Partial<VirtualKeyboardLayer>
-  >;
-  customVirtualKeyboards: Record<string, VirtualKeyboardDefinition>;
-  /**
-   * When a key on the virtual keyboard is pressed, produce a short haptic
-   * feedback, if the device supports it.
-   */
-  keypressVibration: boolean;
-  /**
-   * When a key on the virtual keyboard is pressed, produce a short audio
-   * feedback.
-   *
-   * If the property is set to a `string`, the same sound is played in all
-   * cases. Otherwise, a distinct sound is played:
-   *
-   * -   `delete` a sound played when the delete key is pressed
-   * -   `return` ... when the return/tab key is pressed
-   * -   `spacebar` ... when the spacebar is pressed
-   * -   `default` ... when any other key is pressed. This property is required,
-   *     the others are optional. If they are missing, this sound is played as
-   *     well.
-   *
-   * The value of the properties should be either a string, the name of an
-   * audio file in the `soundsDirectory` directory or `null` to suppress the sound.
-   */
-  keypressSound:
-    | string
-    | null
-    | {
-        spacebar?: null | string;
-        return?: null | string;
-        delete?: null | string;
-        default: null | string;
-      };
-  /**
-   * Sound played to provide feedback when a command has no effect, for example
-   * when pressing the spacebar at the root level.
-   *
-   * The property is either:
-   * - a string, the name of an audio file in the `soundsDirectory` directory
-   * - null to turn off the sound
-   */
-  plonkSound: string | null;
-
-  /**
-   * The right hand side toolbar configuration.
-   *
-   * Use `none` to disable right hand side toolbar of virtual keyboard.
-   */
-  virtualKeyboardToolbar: VirtualKeyboardToolbarOptions;
-
-  /**
-   * Markup for  the virtual keyboard toggle glyph.
-   *
-   * If none is specified a default keyboard icon is used.
-   */
-  virtualKeyboardToggleGlyph: string;
-  /**
-   * -   `"manual"`: pressing the virtual keyboard toggle button will show or hide
-   *     the virtual keyboard. If hidden, the virtual keyboard is not shown when
-   *     the field is focused until the toggle button is pressed.
-   * -   `"onfocus"`: the virtual keyboard will be displayed whenever the field is
-   *     focused and hidden when the field loses focus. In that case, the virtual
-   *     keyboard toggle button is not displayed.
-   * -   `"off"`: the virtual keyboard toggle button is not displayed, and the
-   *     virtual keyboard is never triggered.
-   * -   '`auto'`:  `"onfocus"` on touch-capable devices and `"off"` otherwise
-   *    (**default**).
-   *
-   */
-  virtualKeyboardMode: VirtualKeyboardMode;
-  /**
-   * Element the virtual keyboard element gets appended to. The `position`
-   * attribute of this element should be `relative` so that the virtual keyboard
-   * can correctly be placed relative to this element.
-   *
-   * When using [full screen elements](https://developer.mozilla.org/en-US/docs/Web/API/Fullscreen_API)
-   * that contain mathfield, set this property to the full screen element to
-   * ensure the virtual keyboard will be visible.
-   *
-   * **Default**: `document.body`
-   */
-  virtualKeyboardContainer: null | HTMLElement;
-};
+export type InlineShortcutDefinitions = Record<
+  string,
+  InlineShortcutDefinition
+>;
 
 /**
  * These hooks provide an opportunity to intercept or modify an action.
@@ -547,31 +242,6 @@ export interface MathfieldHooks {
   onExport: (from: Mathfield, latex: string, range: Range) => string;
 }
 
-export type CombinedVirtualKeyboardOptions = Omit<
-  VirtualKeyboardOptions,
-  'virtualKeyboardToggleGlyph' | 'virtualKeyboardMode'
-> &
-  CoreOptions;
-
-export type RemoteVirtualKeyboardOptions = CombinedVirtualKeyboardOptions & {
-  /**
-   * Specify the `targetOrigin` parameter for [postMessage](https://developer.mozilla.org/en/docs/Web/API/Window/postMessage)
-   * to send control messages from parent to child frame to remote control of
-   * mathfield component.
-   *
-   * **Default**: `globalThis.origin`
-   */
-  targetOrigin: string;
-
-  /**
-   * Specify behavior how origin of message from [postMessage](https://developer.mozilla.org/en/docs/Web/API/Window/postMessage)
-   * should be validated.
-   *
-   * **Default**: `"same-origin"`
-   */
-  originValidator: OriginValidator;
-};
-
 //  Note that this can't be an arbitrary string (e.g. `insertMath`), as it will
 // get normalized when the event is dispatched. It has to be one of the strings
 // from here: https://rawgit.com/w3c/input-events/v1/index.html#interface-InputEvent-Attributes
@@ -596,7 +266,7 @@ export type ContentChangeOptions = {
   data?: string | null;
   dataTransfer?: DataTransfer | null;
   inputType?: ContentChangeType;
-  isComposing?: boolean;
+  // isComposing?: boolean;
 };
 
 export type KeyboardOptions = {
@@ -611,7 +281,7 @@ export type InlineShortcutsOptions = {
    * {@inheritDoc InlineShortcutDefinition}
    */
 
-  inlineShortcuts: Record<string, InlineShortcutDefinition>;
+  inlineShortcuts: InlineShortcutDefinitions;
   /**
    * Maximum time, in milliseconds, between consecutive characters for them to be
    * considered part of the same shortcut sequence.
@@ -635,34 +305,6 @@ export type InlineShortcutsOptions = {
    * shortcuts.
    */
   inlineShortcutTimeout: number;
-};
-
-export type LocalizationOptions = {
-  /**
-   * The locale (language + region) to use for string localization.
-   *
-   * If none is provided, the locale of the browser is used.
-   *
-   */
-  locale: string;
-  /**
- * An object whose keys are a locale string, and whose values are an object of
- * string identifier to localized string.
- *
- * **Example**
- *
-```json
-{
-   "fr-CA": {
-      "tooltip.undo": "Annuler",
-      "tooltip.redo": "Refaire",
-   }
-}
-```
- *
- * This will override the default localized strings.
-*/
-  strings: Record<string, Record<string, string>>;
 };
 
 export type EditingOptions = {
@@ -767,37 +409,6 @@ export type EditingOptions = {
   mathModeSpace: string;
 
   /**
-   * The symbol used to separate the integer part from the fractional part of a
-   * number.
-   *
-   * When `","` is used, the corresponding LaTeX string is `{,}`, in order
-   * to ensure proper spacing (otherwise an extra gap is displayed after the
-   * comma).
-   *
-   * This affects:
-   * - what happens when the `,` key is pressed (if `decimalSeparator` is
-   * `","`, the `{,}` LaTeX string is inserted when following some digits)
-   * - the label and behavior of the "." key in the default virtual keyboard
-   *
-   * **Default**: `"."`
-   */
-  decimalSeparator: ',' | '.';
-
-  /**
-   * When navigation a fraction with the keyboard, the order in which the
-   * numerator and navigator are traversed:
-   * - "numerator-denominator": first the elements in the numerator, then
-   *   the elements in the denominator
-   * - "denominator-numerator": first the elements in the denominator, then
-   *   the elements in the numerator. In some East-Asian cultures, fractions
-   *   are read and written denominator first ("fēnzhī"). Using this
-   *   option allows the keyboard navigation to follow this convention.
-   *
-   * **Default**: `"numerator-denominator"`
-   */
-  fractionNavigationOrder: 'numerator-denominator' | 'denominator-numerator';
-
-  /**
    * The symbol used to represent a placeholder in an expression.
    *
    * **Default**: `▢` `U+25A2 WHITE SQUARE WITH ROUNDED CORNERS`
@@ -810,10 +421,9 @@ export type EditingOptions = {
    *
    * **Default**: `true`
    */
-  enablePopover: boolean;
+  popoverPolicy: 'auto' | 'off';
 
-  /** If true, math field becomes read only except inside \prompt{} regions*/
-  promptMode: boolean;
+  mathVirtualKeyboardPolicy: 'auto' | 'manual';
 };
 
 export type LayoutOptions = {
@@ -878,14 +488,6 @@ mf.setConfig({
   backgroundColorMap: (name: string) => string | undefined;
 
   /**
-   * Scaling factor to be applied to horizontal spacing between elements of
-   * the formula. A value greater than 1.0 can be used to improve the
-   * legibility.
-   *
-   * @deprecated Use registers `\thinmuskip`, `\medmuskip` and `\thickmuskip`
-   */
-  horizontalSpacingScale: number;
-  /**
      * Control the letter shape style:
 
     | `letterShapeStyle` | xyz | ABC | αβɣ | ΓΔΘ |
@@ -918,118 +520,29 @@ mf.setConfig({
   letterShapeStyle: 'auto' | 'tex' | 'iso' | 'french' | 'upright';
 };
 
-export type CoreOptions = {
-  /**
-   * A URL fragment pointing to the directory containing the fonts
-   * necessary to render a formula.
-   *
-   * These fonts are available in the `/dist/fonts` directory of the SDK.
-   *
-   * Customize this value to reflect where you have copied these fonts,
-   * or to use the CDN version.
-   *
-   * The default value is './fonts'. Use `null` to prevent
-   * any fonts from being loaded.
-   *
-   * Changing this setting after the mathfield has been created will have
-   * no effect.
-   *
-   * ```javascript
-   * {
-   *      // Use the CDN version
-   *      fontsDirectory: ''
-   * }
-   * ```
-   * ```javascript
-   * {
-   *      // Use a directory called 'fonts', located next to the
-   *      // `mathlive.js` (or `mathlive.mjs`) file.
-   *      fontsDirectory: './fonts'
-   * }
-   * ```
-   * ```javascript
-   * {
-   *      // Use a directory located at the top your website
-   *      fontsDirectory: 'https://example.com/fonts'
-   * }
-   * ```
-   *
-   */
-  fontsDirectory: string | null;
-
-  /**
-   * A URL fragment pointing to the directory containing the optional
-   * sounds used to provide feedback while typing.
-   *
-   * Some default sounds are available in the `/dist/sounds` directory of the SDK.
-   *
-   * Use `null` to prevent any sound from being loaded.
-   *
-   */
-  soundsDirectory: string | null;
-
-  /**
-   * A custom compute engine instance. If none is provided, a default one is
-   * used. If `null` is specified, no compute engine is used.
-   */
-  computeEngine: any | null;
-
-  /**
-   * Support for [Trusted Type](https://w3c.github.io/webappsec-trusted-types/dist/spec/).
-   *
-   * This optional function will be called before a string of HTML is
-   * injected in the DOM, allowing that string to be sanitized
-   * according to a policy defined by the host.
-   */
-  createHTML: (html: string) => any;
-  // @todo https://github.com/microsoft/TypeScript/issues/30024
-};
-
 /**
  * @keywords security, trust, sanitize, errors
  */
 export type MathfieldOptions = LayoutOptions &
   EditingOptions &
-  LocalizationOptions &
   InlineShortcutsOptions &
   KeyboardOptions &
-  VirtualKeyboardOptions &
-  TextToSpeechOptions &
-  CoreOptions &
   MathfieldHooks & {
-    /**
-     * When `true`, use a shared virtual keyboard for all the mathfield
-     * elements in the page, even across _iframes_.
-     *
-     * When setting this option to `true`, you must create the shared
-     * virtual keyboard in the the parent document. You should call
-     * `makeSharedVirtualKeyboard()` before changing the options of any
-     * mathfield or adding new mathfield elements to the DOM.
-     *
-     * ```javascript
-     * import { makeSharedVirtualKeyboard } from 'mathlive';
-     *
-     * makeSharedVirtualKeyboard();
-     * ```
-     *
-     * **Default**: `false`
-     */
-    useSharedVirtualKeyboard: boolean;
     /**
      * Specify the `targetOrigin` parameter for
      * [postMessage](https://developer.mozilla.org/en/docs/Web/API/Window/postMessage)
      * to send control messages from child to parent frame to remote control
      * of mathfield component.
      *
-     * **Default**: `globalThis.origin`
+     * **Default**: `window.origin`
      */
-    sharedVirtualKeyboardTargetOrigin: string;
+    virtualKeyboardTargetOrigin: string;
 
     /**
-     * Specify behavior how origin of message from [postMessage](https://developer.mozilla.org/en/docs/Web/API/Window/postMessage)
+     * Specify how origin of message from [postMessage](https://developer.mozilla.org/en/docs/Web/API/Window/postMessage)
      * should be validated.
      *
-     * **Default**: `"same-origin"`
+     * **Default**: `"none"`
      */
     originValidator: OriginValidator;
   };
@@ -1086,54 +599,7 @@ export declare function setKeyboardLayout(
  */
 export declare function setKeyboardLayoutLocale(locale: string): void;
 
-export type AutoRenderOptions = Partial<TextToSpeechOptions> & {
-  /**
-   * A URL fragment pointing to the directory containing the fonts
-   * necessary to render a formula.
-   *
-   * These fonts are available in the `/dist/fonts` directory of the SDK.
-   *
-   * Customize this value to reflect where you have copied these fonts,
-   * or to use the CDN version.
-   *
-   * The default value is './fonts'.
-   *
-   * Changing this setting after the mathfield has been created will have
-   * no effect.
-   *
-   * ```javascript
-   * {
-   *      // Use the CDN version
-   *      fontsDirectory: ''
-   * }
-   * ```
-   * ```javascript
-   * {
-   *      // Use a directory called 'fonts', located next to the
-   *      // `mathlive.js` (or `mathlive.mjs`) file.
-   *      fontsDirectory: './fonts'
-   * }
-   * ```
-   * ```javascript
-   * {
-   *      // Use a directory located at the top your website
-   *      fontsDirectory: 'https://example.com/fonts'
-   * }
-   * ```
-   *
-   * Setting this value to `null` will prevent the fonts from being loaded.
-   */
-  fontsDirectory?: string | null;
-
-  /**
-   * Support for [Trusted Type](https://w3c.github.io/webappsec-trusted-types/dist/spec/).
-   *
-   * This optional function will be called whenever the DOM is modified
-   * by injecting a string of HTML, allowing that string to be sanitized
-   * according to a policy defined by the host.
-   */
-  createHTML?: (html: string) => string; // or TrustedHTML. See https://github.com/microsoft/TypeScript/issues/30024
-
+export type AutoRenderOptions = {
   /** An array of tag names whose content will
    *  not be scanned for delimiters (unless their class matches the `processClass`
    * pattern below.

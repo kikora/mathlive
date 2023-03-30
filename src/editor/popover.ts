@@ -34,22 +34,18 @@ let gPopoverStylesheet: Stylesheet | null = null;
 let gCoreStylesheet: Stylesheet | null = null;
 
 function latexToMarkup(mf: MathfieldPrivate, latex: string): string {
-  const context = mf;
-  const root = new Atom('root', context);
-  root.body = parseLatex(latex, context, { parseMode: 'math' });
+  const root = new Atom('root', mf);
+  root.body = parseLatex(latex, mf, { parseMode: 'math' });
 
+  const context = new Context(
+    { registers: mf.registers },
+    { fontSize: DEFAULT_FONT_SIZE },
+    'displaystyle'
+  );
   const box = coalesce(
     adjustInterAtomSpacing(
-      new Box(
-        root.render(
-          new Context(
-            { registers: context.registers },
-            { fontSize: DEFAULT_FONT_SIZE },
-            'displaystyle'
-          )
-        ),
-        { classes: 'ML__base' }
-      )
+      new Box(root.render(context), { classes: 'ML__base' }),
+      context
     )
   );
 
@@ -57,7 +53,7 @@ function latexToMarkup(mf: MathfieldPrivate, latex: string): string {
 }
 
 export function showPopover(mf: MathfieldPrivate, suggestions: string[]): void {
-  if (suggestions.length === 0 || mf.options.enablePopover === false) {
+  if (suggestions.length === 0 || mf.options.popoverPolicy === 'off') {
     hidePopover(mf);
     return;
   }
@@ -159,7 +155,7 @@ function setPopoverPosition(
     window.innerWidth - document.documentElement.clientWidth;
   const scrollbarHeight =
     window.innerHeight - document.documentElement.clientHeight;
-  const virtualkeyboardHeight = mf.virtualKeyboard!.height;
+  const virtualkeyboardHeight = window.mathVirtualKeyboard.boundingRect.height;
   // Prevent screen overflow horizontal.
   if (position.x + mf.popover.offsetWidth / 2 > screenWidth - scrollbarWidth) {
     mf.popover.style.left = `${
@@ -195,7 +191,7 @@ export function hidePopover(mf: MathfieldPrivate): void {
 
 export function createPopover(mf: MathfieldPrivate, html: string): HTMLElement {
   if (mf.popover) {
-    mf.popover.innerHTML = mf.options.createHTML(html);
+    mf.popover.innerHTML = window.MathfieldElement.createHTML(html);
     return mf.popover;
   }
 
@@ -214,7 +210,7 @@ export function createPopover(mf: MathfieldPrivate, html: string): HTMLElement {
     hashCode(CORE_STYLESHEET).toString(36)
   );
 
-  mf.popover.innerHTML = mf.options.createHTML(html);
+  mf.popover.innerHTML = window.MathfieldElement.createHTML(html);
 
   return mf.popover;
 }

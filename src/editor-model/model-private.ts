@@ -98,6 +98,8 @@ export class ModelPrivate implements Model {
   setSelection(range: Range): boolean;
   setSelection(selection: Selection): boolean;
   setSelection(arg1: Offset | Range | Selection, arg2?: Offset): boolean {
+    if (!this.mathfield.contentEditable && this.mathfield.userSelect === 'none')
+      return false;
     return this.deferNotifications({ selection: true }, () => {
       //
       // 1/ Normalize the input
@@ -114,61 +116,64 @@ export class ModelPrivate implements Model {
         value.ranges[0][0] === value.ranges[0][1]
       ) {
         const pos = value.ranges[0][0];
+        // Are we attempting to set the caret outside a prompt
+        // (while in prompt mode)?
         if (
           !this.mathfield.dirty &&
-          !this.at(pos).inEditablePrompt &&
-          this.mathfield.prompting
+          !this.at(pos)?.parentPrompt &&
+          this.mathfield.hasEditablePrompts
         ) {
-          if (this.at(pos - 1)?.inEditablePrompt) {
-            this._anchor = pos - 1;
-            this._position = pos - 1;
-            this._selection = this.normalizeSelection(pos - 1, pos - 1);
+          if (this.at(pos - 1)?.parentPrompt) {
+            this._anchor = this.normalizeOffset(pos - 1);
+            this._position = this._anchor;
+            this._selection = this.normalizeSelection(this._anchor);
             return true;
-          } else if (this.at(pos + 1)?.inEditablePrompt) {
-            this._anchor = pos + 1;
-            this._position = pos + 1;
-            this._selection = this.normalizeSelection(pos + 1, pos + 1);
+          }
+
+          if (this.at(pos + 1)?.parentPrompt) {
+            this._anchor = this.normalizeOffset(pos + 1);
+            this._position = this._anchor;
+            this._selection = this.normalizeSelection(this._anchor);
             return true;
           }
           this._anchor = 0;
           this._position = 0;
-          this._selection = value;
+          this._selection = { ranges: [[0, 0]] };
           return false;
         }
         this._anchor = pos;
         this._position = pos;
         this._selection = value;
-      } else {
-        //
-        // 2b/ Determine the anchor and position
-        // (smallest, largest offsets, oriented as per `direction`)
-        //
-        const selRange = range(value);
-        if (value.direction === 'backward')
-          [this._position, this._anchor] = selRange;
-        else [this._anchor, this._position] = selRange;
-
-        const first = this.at(selRange[0] + 1);
-        const last = this.at(selRange[1]);
-
-        const commonAncestor = Atom.commonAncestor(first, last);
-        if (
-          commonAncestor?.type === 'array' &&
-          first.parent === commonAncestor &&
-          last.parent === commonAncestor
-        ) {
-          // 3a/ If the parent of all the ranges is an array...
-          // Make a rectangular selection based on the col/row of the anchor
-          // and cursor
-          // @todo array
-          this._selection = { ranges: [selRange], direction: value.direction };
-        } else
-          this._selection = { ranges: [selRange], direction: value.direction };
-
-        console.assert(
-          this._position >= 0 && this._position <= this.lastOffset
-        );
+        return false;
       }
+
+      //
+      // 2b/ Determine the anchor and position
+      // (smallest, largest offsets, oriented as per `direction`)
+      //
+      const selRange = range(value);
+      if (value.direction === 'backward')
+        [this._position, this._anchor] = selRange;
+      else [this._anchor, this._position] = selRange;
+
+      const first = this.at(selRange[0] + 1);
+      const last = this.at(selRange[1]);
+
+      const commonAncestor = Atom.commonAncestor(first, last);
+      if (
+        commonAncestor?.type === 'array' &&
+        first.parent === commonAncestor &&
+        last.parent === commonAncestor
+      ) {
+        // 3a/ If the parent of all the ranges is an array...
+        // Make a rectangular selection based on the col/row of the anchor
+        // and cursor
+        // @todo array
+        this._selection = { ranges: [selRange], direction: value.direction };
+      } else
+        this._selection = { ranges: [selRange], direction: value.direction };
+
+      console.assert(this._position >= 0 && this._position <= this.lastOffset);
       return false;
     });
   }
@@ -366,7 +371,7 @@ export class ModelPrivate implements Model {
    * Return all the atoms, in order, starting at startingIndex
    * then looping back at the beginning
    */
-  getAllAtoms(startingIndex: number): Atom[] {
+  getAllAtoms(startingIndex = 0): Atom[] {
     const result: Atom[] = [];
     const last = this.lastOffset;
     for (let i = startingIndex; i <= last; i++) result.push(this.atoms[i]);
@@ -374,6 +379,30 @@ export class ModelPrivate implements Model {
     for (let i = 0; i < startingIndex; i++) result.push(this.atoms[i]);
 
     return result;
+  }
+
+  findAtom(
+    filter: (x: Atom) => boolean,
+    startingIndex = 0,
+    direction: 'forward' | 'backward' = 'forward'
+  ): Atom | undefined {
+    if (direction === 'forward') {
+      const last = this.lastOffset;
+      for (let i = startingIndex; i <= last; i++)
+        if (filter(this.atoms[i])) return this.atoms[i];
+
+      for (let i = 0; i < startingIndex; i++)
+        if (filter(this.atoms[i])) return this.atoms[i];
+      return undefined;
+    }
+
+    for (let i = startingIndex; i >= 0; i--)
+      if (filter(this.atoms[i])) return this.atoms[i];
+
+    for (let i = this.lastOffset; i < startingIndex; i--)
+      if (filter(this.atoms[i])) return this.atoms[i];
+
+    return undefined;
   }
 
   /** Remove the specified atoms from the tree.
@@ -406,16 +435,15 @@ export class ModelPrivate implements Model {
       });
     }
 
-    if (format === 'math-ml') return toMathML(atom, this.mathfield.options);
+    if (format === 'math-ml') return toMathML(atom);
 
-    if (format === 'spoken')
-      return atomToSpeakableText(atom, this.mathfield.options);
+    if (format === 'spoken') return atomToSpeakableText(atom);
 
     if (format === 'spoken-text') {
-      const saveTextToSpeechMarkup = this.mathfield.options.textToSpeechMarkup;
-      this.mathfield.options.textToSpeechMarkup = '';
-      const result = atomToSpeakableText(atom, this.mathfield.options);
-      this.mathfield.options.textToSpeechMarkup = saveTextToSpeechMarkup;
+      const saveTextToSpeechMarkup = window.MathfieldElement.textToSpeechMarkup;
+      window.MathfieldElement.textToSpeechMarkup = '';
+      const result = atomToSpeakableText(atom);
+      window.MathfieldElement.textToSpeechMarkup = saveTextToSpeechMarkup;
       return result;
     }
 
@@ -423,21 +451,21 @@ export class ModelPrivate implements Model {
       format === 'spoken-ssml' ||
       format === 'spoken-ssml-with-highlighting'
     ) {
-      const saveTextToSpeechMarkup = this.mathfield.options.textToSpeechMarkup;
+      const saveTextToSpeechMarkup = window.MathfieldElement.textToSpeechMarkup;
       // Const savedAtomIdsSettings = this.config.atomIdsSettings;    // @revisit
-      this.mathfield.options.textToSpeechMarkup = 'ssml';
+      window.MathfieldElement.textToSpeechMarkup = 'ssml';
       // If (format === 'spoken-ssml-with-highlighting') {     // @revisit
       //     this.config.atomIdsSettings = { seed: 'random' };
       // }
-      const result = atomToSpeakableText(atom, this.mathfield.options);
-      this.mathfield.options.textToSpeechMarkup = saveTextToSpeechMarkup;
+      const result = atomToSpeakableText(atom);
+      window.MathfieldElement.textToSpeechMarkup = saveTextToSpeechMarkup;
       // This.config.atomIdsSettings = savedAtomIdsSettings;      // @revisit
       return result;
     }
 
     if (format === 'math-json') {
-      if (!this.mathfield.computeEngine) {
-        if (!globalThis[Symbol.for('io.cortexjs.compute-engine')]) {
+      if (!window.MathfieldElement.computeEngine) {
+        if (!window[Symbol.for('io.cortexjs.compute-engine')]) {
           console.error(
             'The CortexJS Compute Engine library is not available.\nLoad the library, for example with:\nimport "https://unpkg.com/@cortex-js/compute-engine?module"'
           );
@@ -445,7 +473,7 @@ export class ModelPrivate implements Model {
         return '["Error", "compute-engine-not-available"]';
       }
       try {
-        const expr = this.mathfield.computeEngine.parse(
+        const expr = window.MathfieldElement.computeEngine.parse(
           Atom.serialize(atom, { expandMacro: false, defaultMode: 'math' })
         );
         return JSON.stringify(expr.json);
@@ -456,7 +484,7 @@ export class ModelPrivate implements Model {
 
     if (format === 'ascii-math') return atomToAsciiMath(atom);
 
-    console.error('MathLive: Unknown format :', format);
+    console.error(`MathLive {{SDK_VERSION}}: Unknown format "${format}`);
     return '';
   }
 
@@ -575,6 +603,8 @@ export class ModelPrivate implements Model {
    * in a selection whose boundary is outside the anchor
    */
   extendSelectionTo(anchor: Offset, position: Offset): boolean {
+    if (!this.mathfield.contentEditable && this.mathfield.userSelect === 'none')
+      return false;
     return this.deferNotifications({ selection: true }, () => {
       const range = this.normalizeRange([anchor, position]);
       let [start, end] = range;

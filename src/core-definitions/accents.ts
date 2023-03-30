@@ -1,16 +1,15 @@
-import { Style } from '../public/core';
-
 import { Atom } from '../core/atom-class';
 import { AccentAtom } from '../core-atoms/accent';
 import { OverunderAtom } from '../core-atoms/overunder';
-import { GlobalContext } from '../core/context';
+import type { Style } from 'public/core-types';
+import type { GlobalContext } from 'core/types';
 
 import {
   Argument,
+  binRelType,
   defineFunction,
   parseArgAsString,
 } from './definitions-utils';
-import { binRelType } from './styling';
 
 const ACCENTS = {
   acute: 0x02ca,

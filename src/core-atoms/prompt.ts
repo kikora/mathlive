@@ -1,18 +1,19 @@
-import { ParseMode, Style } from '../public/core';
+import type { ParseMode, Style } from '../public/core-types';
+import type { GlobalContext } from 'core/types';
 
 import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
 import { addSVGOverlay, Box } from '../core/box';
-import { Context, GlobalContext } from '../core/context';
+import { Context } from '../core/context';
 import { convertDimensionToEm } from '../core/registers-utils';
 
 export class PromptAtom extends Atom {
   readonly placeholderId?: string;
-  correctness: string | undefined;
+  correctness: 'correct' | 'incorrect' | undefined;
   locked: boolean;
   constructor(
     context: GlobalContext,
     placeholderId?: string,
-    correctness?: string | undefined,
+    correctness?: 'correct' | 'incorrect' | undefined,
     locked = false,
     body?: Atom[],
     options?: {

@@ -1,10 +1,11 @@
-import { Style } from '../public/core';
+import type { Style } from '../public/core-types';
+import type { GlobalContext } from 'core/types';
 
 import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
 import { Box } from '../core/box';
-import { Context, GlobalContext } from '../core/context';
-import { convertToDimension } from '../core/parser';
+import { Context } from '../core/context';
 import { convertDimensionToEm } from '../core/registers-utils';
+import { convertToDimension } from '../core/parser';
 
 export class BoxAtom extends Atom {
   readonly framecolor?: string;

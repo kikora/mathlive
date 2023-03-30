@@ -1,9 +1,5 @@
 /* eslint-disable no-new */
-import type {
-  AutoRenderOptions,
-  MathfieldOptions,
-  RemoteVirtualKeyboardOptions,
-} from './public/options';
+import type { AutoRenderOptions } from './public/options';
 export * from './public/mathlive';
 
 import {
@@ -14,22 +10,18 @@ export * from './addons/auto-render';
 import MathLiveDebug from './addons/debug';
 import './addons/definitions-metadata';
 
-import { VirtualKeyboard } from './editor/virtual-keyboard-utils';
-import './editor/virtual-keyboard-commands';
-import { RemoteVirtualKeyboard } from './editor-mathfield/remote-virtual-keyboard';
+import './virtual-keyboard/commands';
 
 import {
   convertLatexToMarkup,
   convertLatexToMathMl,
   convertLatexToSpeakableText,
   serializeMathJsonToLatex,
-} from 'public/mathlive-ssr';
+} from './public/mathlive-ssr';
+import type { VirtualKeyboardInterface } from './public/virtual-keyboard-types';
 
 export type MathLiveGlobal = {
   version: string;
-  sharedVirtualKeyboard?: RemoteVirtualKeyboard;
-  visibleVirtualKeyboard?: VirtualKeyboard;
-  config: Partial<MathfieldOptions>; // for speechEngine, speakHook
   readAloudElement: null | HTMLElement;
   readAloudMarks: { value: string; time: number }[];
   readAloudTokens: string[];
@@ -41,72 +33,33 @@ export type MathLiveGlobal = {
   readAloudMathField: any; // MathfieldPrivate;
 };
 
+// Note that this global is only global to the "browsing context". In the
+// case of a page containing iframes, each iframe is a separate browsing
+// context, and therefore will have its own `globalMathLive()`
 export function globalMathLive(): MathLiveGlobal {
   globalThis[Symbol.for('io.cortexjs.mathlive')] ??= {};
   return globalThis[Symbol.for('io.cortexjs.mathlive')];
 }
 
 /**
- * Setup the document to use a single shared virtual keyboard amongst
- * all `<math-field>` instances in the document, including those in _iframes_.
+ * This function is deprecated and is no longer necessary: the virtual
+ * keyboard is always shared. This function will be removed in a future release
+ * of MathLive.
  *
- * `makeSharedVirtualKeyboard()` should be called as early as possible,
- * and before any new mathfield element is created: it doesn't apply
- * retroactively.
- *
- * `<math-field>` elements in an _iframe_ should have the
- * `use-shared-virtual-keyboard` attribute.
- *
- * The shared virtual keyboard coordinates focus between multiple mathfield
- * elements and renders the virtual keyboard with the options passed by param
- * of this method.
- *
- * Calling `setOptions()` on a mathfield with options related to the keyboard
- * will affect this shared virtual keyboard instance when the mathfield is
- * focused.
- *
- * @param options Options to configure the shared virtual keyboard.
- *
- * ```html
- * <iframe src="...">
- *      <!-- The iframe page content -->
- *      <math-field virtual-keyboard-mode="onfocus" use-shared-virtual-keyboard />
- *
- *      <script type="module">
- *          import 'https://unpkg.com/mathlive?module';
- *      </script>
- * </iframe>
- * ```
- *
- * ```javascript
- *  import { makeSharedVirtualKeyboard } from 'https://unpkg.com/mathlive?module';
- *
- *  makeSharedVirtualKeyboard();
- * ```
- * Read more about [sharing virtual keyboards](https://cortexjs.io/mathlive/guides/virtual-keyboards/#shared-virtual-keyboard)
+ * To access the global shared virtual keyboard use `window.mathVirtualKeyboard`
  *
  * @keywords create, make, mathfield, iframe
+ * @deprecated
  */
-export function makeSharedVirtualKeyboard(
-  options?: Partial<RemoteVirtualKeyboardOptions>
-): RemoteVirtualKeyboard {
-  if (!globalMathLive().sharedVirtualKeyboard) {
-    if (
-      [...document.querySelectorAll('math-field')].some(
-        (x) =>
-          x.isConnected &&
-          x['_mathfield'] &&
-          x['_mathfield']['_virtualKeyboard'] &&
-          x['_mathfield']['_virtualKeyboard'] instanceof VirtualKeyboard
-      )
-    ) {
-      console.error(
-        'MathLive: makeSharedVirtualKeyboard() must be called before any mathfield element is connected to the DOM or set the `use-shared-virtual-keyboard` on each mathfield elements.'
-      );
-    }
-    globalMathLive().sharedVirtualKeyboard = new RemoteVirtualKeyboard(options);
-  }
-  return globalMathLive().sharedVirtualKeyboard!;
+export function makeSharedVirtualKeyboard(): VirtualKeyboardInterface {
+  console.warn(
+    `%cMathLive {{SDK_VERSION}}: %cmakeSharedVirtualKeyboard() is deprecated. 
+    Use \`window.mathVirtualKeyboard\` to access the virtual keyboard instance.
+    See https://cortexjs.io/mathlive/changelog/ for details.`,
+    'color:#12b; font-size: 1.1rem',
+    'color:#db1111; font-size: 1.1rem'
+  );
+  return window.mathVirtualKeyboard;
 }
 
 /**

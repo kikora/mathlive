@@ -1,6 +1,6 @@
 {
-  "name": "@kikora/mathlive",
-  "version": "0.89.4-kikora.1",
+  "name": "mathlive",
+  "version": "0.90.10-kikora.0",
   "description": "A web component for math input",
   "license": "MIT",
   "funding": {
@@ -55,7 +55,7 @@
     "Ben Eater (https://github.com/beneater)",
     "Dominik Janković (https://github.com/djankovic)",
     "Edin Adilagić (https://github.com/physedo)",
-    "https://github.com/gunnarmein-ts",
+    "Gunnar Mein (https://github.com/gunnarmein-ts)",
     "Zeyad Ahmad Aql (https://github.com/zeyad-ahmad-aql)",
     "Sergiy Bondaryev (https://github.com/sbondaryev)",
     "Damian Jóźwiak (https://github.com/kvas-damian)",
@@ -83,7 +83,8 @@
     "Danny Greg (https://github.com/dannygreg)",
     "Luis Mesa (https://github.com/LuisMesa)",
     "Pablo Androetto (https://github.com/androettop)",
-    "James Mullen (https://github.com/wildyellowfin)"
+    "James Mullen (https://github.com/wildyellowfin)",
+    "Michael Greminger (https://github.com/mgreminger)"
   ],
   "browserslist": [
     "> 1%",

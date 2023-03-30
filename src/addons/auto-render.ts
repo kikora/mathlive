@@ -3,7 +3,7 @@
 // @ts-ignore-error
 import coreStylesheet from '../../css/core.less';
 
-import { AutoRenderOptions, TextToSpeechOptions } from '../public/options';
+import { AutoRenderOptions } from '../public/options';
 
 import { inject as injectStylesheet } from '../common/stylesheet';
 import { hashCode } from '../common/hash-code';
@@ -32,10 +32,7 @@ export type AutoRenderOptionsPrivate = AutoRenderOptions & {
   renderToMathML?: (text: string) => string;
 
   /** A function that will convert a LaTeX string to speakable text markup. */
-  renderToSpeakableText?: (
-    text: string,
-    options: Partial<TextToSpeechOptions>
-  ) => string;
+  renderToSpeakableText?: (text: string) => string;
 
   /** A function to convert MathJSON to a LaTeX string */
   serializeToLatex?: (json: any) => string;
@@ -236,11 +233,10 @@ function createMathMLNode(
       "<math xmlns='http://www.w3.org/1998/Math/MathML'>" +
       options.renderToMathML!(latex) +
       '</math>';
-    span.innerHTML = options.createHTML ? options.createHTML(html) : html;
+    span.innerHTML = window.MathfieldElement.createHTML(html);
   } catch (error: unknown) {
     console.error(
-      "MathLive: Could not convert '" + latex + "' to MathML with ",
-      error
+      `MathLive {{SDK_VERSION}}:  Could not convert "${latex}"' to MathML with ${error}`
     );
     span.textContent = latex;
   }
@@ -270,7 +266,7 @@ function createMarkupNode(
       mathstyle === 'displaystyle' ? 'div' : 'span'
     );
     element.setAttribute('aria-hidden', 'true');
-    element.innerHTML = options.createHTML ? options.createHTML(html) : html;
+    element.innerHTML = window.MathfieldElement.createHTML(html);
     return element;
   } catch (error: unknown) {
     console.error("Could not parse'" + text + "' with ", error);
@@ -306,8 +302,8 @@ function createAccessibleMarkupPair(
       options.renderToSpeakableText
     ) {
       const span = document.createElement('span');
-      const html = options.renderToSpeakableText(latex, options);
-      span.innerHTML = options.createHTML ? options.createHTML(html) : html;
+      const html = options.renderToSpeakableText(latex);
+      span.innerHTML = window.MathfieldElement.createHTML(html);
       span.className = 'ML__sr-only';
       fragment.append(span);
     }
@@ -562,8 +558,7 @@ export function autoRenderMathInElement(
     // Load the fonts and inject the stylesheet once to
     // avoid having to do it many times in the case of a `renderMathInDocument()`
     // call.
-    if (optionsPrivate.fontsDirectory !== null)
-      void loadFonts(optionsPrivate.fontsDirectory);
+    requestAnimationFrame(() => void loadFonts());
     injectStylesheet(
       null,
       coreStylesheet,

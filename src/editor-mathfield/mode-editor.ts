@@ -1,8 +1,8 @@
+import type { ParseMode } from 'public/core-types';
 import { TextAtom } from '../core-atoms/text';
 import { ModelPrivate } from '../editor-model/model-private';
 import { range } from '../editor-model/selection-utils';
 import { MODE_SHIFT_COMMANDS } from '../editor/parse-math-string';
-import { ParseMode } from '../public/core';
 import { InsertOptions, Range } from '../public/mathfield';
 import { MathfieldPrivate } from './mathfield-private';
 
@@ -37,6 +37,10 @@ export class ModeEditor {
     mathfield: MathfieldPrivate,
     data: DataTransfer | string | null
   ): boolean {
+    if (!mathfield.contentEditable && mathfield.userSelect === 'none') {
+      mathfield.model.announce('plonk');
+      return false;
+    }
     if (typeof data === 'string') {
       const dataTransfer = new DataTransfer();
       dataTransfer.setData('text/plain', data);
@@ -54,6 +58,11 @@ export class ModeEditor {
 
   static onCopy(mathfield: MathfieldPrivate, ev: ClipboardEvent): void {
     if (!ev.clipboardData) return;
+    if (!mathfield.contentEditable && mathfield.userSelect === 'none') {
+      mathfield.model.announce('plonk');
+      return;
+    }
+
     const model = mathfield.model;
     const exportRange: Range = model.selectionIsCollapsed
       ? [0, model.lastOffset]
@@ -123,7 +132,7 @@ export class ModeEditor {
       //
       // 5. Put other flavors on the clipboard (MathJSON)
       //
-      const ce = mathfield.computeEngine;
+      const ce = window.MathfieldElement.computeEngine;
       if (ce) {
         try {
           ce.jsonSerializationOptions = { metadata: ['latex'] };
