@@ -1,5 +1,5 @@
 {
-  "name": "mathlive",
+  "name": "@kikora/mathlive",
   "version": "0.90.10-kikora.0",
   "description": "A web component for math input",
   "license": "MIT",
