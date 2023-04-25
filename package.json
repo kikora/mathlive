@@ -1,6 +1,6 @@
 {
-  "name": "mathlive",
-  "version": "0.92.1",
+  "name": "@kikora/mathlive",
+  "version": "0.92.1-kikora.0",
   "description": "A web component for math input",
   "license": "MIT",
   "funding": {
@@ -46,9 +46,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/arnog/mathlive.git"
+    "url": "https://github.com/kikora/mathlive.git"
   },
-  "bugs": "https://github.com/arnog/mathlive/issues/",
+  "bugs": "https://github.com/kikora/mathlive/issues/",
   "scripts": {
     "build": "bash ./scripts/build.sh",
     "clean": "bash ./scripts/clean.sh",
@@ -57,8 +57,7 @@
     "prepare": "bash ./scripts/build.sh production",
     "start": "bash ./scripts/start.sh",
     "test": "bash ./scripts/test.sh",
-    "version": "bash ./scripts/version.sh",
-    "postversion": "bash ./scripts/github-release.sh"
+    "watch": "bash ./scripts/watch.sh"
   },
   "author": "Arno Gourdol <arno@arno.org>",
   "contributors": [
