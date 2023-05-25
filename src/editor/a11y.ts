@@ -17,14 +17,16 @@ function relationName(atom: Atom): string {
   if (atom.parent!.type === 'prompt') {
     if (atom.parentBranch === 'body') result = 'prompt';
   } else if (atom.parentBranch === 'body') {
-    result = {
-      enclose: 'krysse ut',
-      leftright: 'skilletegn',
-      surd: 'kvadratrot',
-      root: 'mattefelt',
-      mop: 'operatør', // E.g. `\operatorname`, a `mop` with a body
-      first: 'først',
-    }[atom.type];
+    result = !atom.type
+      ? 'overordnet'
+      : {
+          enclose: 'krysse ut',
+          leftright: 'skilletegn',
+          surd: 'kvadratrot',
+          root: 'mattefelt',
+          mop: 'operatør', // E.g. `\operatorname`, a `mop` with a body
+          first: 'først',
+        }[atom.type] ?? 'overordnet';
   } else if (atom.parent!.type === 'genfrac') {
     if (atom.parentBranch === 'above') return 'teller';
 

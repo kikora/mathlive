@@ -3,7 +3,10 @@ import { suggest } from '../core-definitions/definitions-utils';
 
 import type { ModelPrivate } from '../editor-model/model-private';
 
-import { hidePopover, showPopover } from '../editor/popover';
+import {
+  hideSuggestionPopover,
+  showSuggestionPopover,
+} from '../editor/suggestion-popover';
 
 import type { MathfieldPrivate } from './mathfield-private';
 import { render } from './render';
@@ -37,7 +40,7 @@ export function updateAutocomplete(
     !model.selectionIsCollapsed ||
     mathfield.options.popoverPolicy === 'off'
   ) {
-    hidePopover(mathfield);
+    hideSuggestionPopover(mathfield);
     return;
   }
 
@@ -73,7 +76,7 @@ export function updateAutocomplete(
     if (/^\\[a-zA-Z\*]+$/.test(command))
       for (const atom of commandAtoms) atom.isError = true;
 
-    hidePopover(mathfield);
+    hideSuggestionPopover(mathfield);
     return;
   }
 
@@ -87,14 +90,14 @@ export function updateAutocomplete(
     const lastAtom = commandAtoms[commandAtoms.length - 1];
     lastAtom.parent!.addChildrenAfter(
       [...suggestion.slice(command.length - suggestion.length)].map(
-        (x) => new LatexAtom(x, mathfield, { isSuggestion: true })
+        (x) => new LatexAtom(x, { isSuggestion: true })
       ),
       lastAtom
     );
     render(mathfield, { interactive: true });
   }
 
-  showPopover(mathfield, suggestions);
+  showSuggestionPopover(mathfield, suggestions);
 }
 
 export function acceptCommandSuggestion(model: ModelPrivate): boolean {
@@ -121,7 +124,7 @@ export function complete(
   completion: 'reject' | 'accept' | 'accept-suggestion' = 'accept',
   options?: { mode?: ParseMode; selectItem?: boolean }
 ): boolean {
-  hidePopover(mathfield);
+  hideSuggestionPopover(mathfield);
   const latexGroup = getLatexGroup(mathfield.model);
   if (!latexGroup) return false;
 
@@ -147,13 +150,14 @@ export function complete(
   const newPos = latexGroup.leftSibling;
   latexGroup.parent!.removeChild(latexGroup);
   mathfield.model.position = mathfield.model.offsetOf(newPos);
-  mathfield.mode = options?.mode ?? 'math';
+  mathfield.model.mode = options?.mode ?? 'math';
 
   if (completion === 'reject') return true;
 
-  ModeEditor.insert('math', mathfield.model, latex, {
+  ModeEditor.insert(mathfield.model, latex, {
     selectionMode: options?.selectItem ?? false ? 'item' : 'placeholder',
     format: 'latex',
+    mode: 'math',
   });
 
   mathfield.snapshot();

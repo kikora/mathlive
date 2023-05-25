@@ -2,7 +2,7 @@ import type {
   InlineShortcutDefinition,
   InlineShortcutDefinitions,
 } from '../public/options';
-import { LETTER } from '../core-definitions/definitions';
+import { LETTER } from '../core-definitions/definitions-utils';
 import type { Atom } from '../core/atom';
 
 export { InlineShortcutDefinition, InlineShortcutDefinitions };
@@ -42,7 +42,7 @@ function validateShortcut(
   // Find first sibling left which is not a placeholder or subsup
   let sibling = siblings[0]; // sibling immediately left
   let index = 0;
-  while (sibling && /msubsup|placeholder/.test(sibling.type)) {
+  while (sibling?.type && /msubsup|placeholder/.test(sibling.type)) {
     index += 1;
     sibling = siblings[index];
   }

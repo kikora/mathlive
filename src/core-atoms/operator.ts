@@ -1,11 +1,17 @@
-import type { Variant, VariantStyle, Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
+import type { Variant, VariantStyle } from '../public/core-types';
 
-import { Atom, AtomJson, AtomType, ToLatexOptions } from '../core/atom-class';
+import {
+  Atom,
+  AtomJson,
+  AtomType,
+  CreateAtomOptions,
+  ToLatexOptions,
+} from '../core/atom-class';
 import { Box } from '../core/box';
 import { Context } from '../core/context';
 import { joinLatex, latexCommand } from '../core/tokenizer';
 import { AXIS_HEIGHT } from '../core/font-metrics';
+import { getDefinition } from '../core-definitions/definitions-utils';
 
 /**
  * Operators are handled in the TeXbook pg. 443-444, rule 13(a).
@@ -16,32 +22,25 @@ export class OperatorAtom extends Atom {
   private readonly hasArgument: boolean;
 
   constructor(
-    command: string,
-    symbol: string | Atom[],
-    context: GlobalContext,
-    options: {
+    symbol: string,
+    options: CreateAtomOptions & {
       type?: AtomType;
       isExtensibleSymbol?: boolean;
       isFunction?: boolean;
       hasArgument?: boolean;
-      captureSelection?: boolean;
       // Unlike `style`, `variant` and `variantStyle` are applied to the
       // content of this atom, but not propagated to the next atom
       variant?: Variant;
       variantStyle?: VariantStyle;
       limits?: 'auto' | 'over-under' | 'adjacent';
-      style?: Style;
     }
   ) {
-    super(options.type ?? 'mop', context, {
-      command,
-      style: options.style,
+    super({
+      ...options,
+      type: options.type ?? 'mop',
       isFunction: options?.isFunction,
     });
-    if (typeof symbol === 'string') this.value = symbol;
-    else this.body = symbol;
-
-    this.captureSelection = options.captureSelection ?? false;
+    this.value = symbol;
 
     this.hasArgument = options.hasArgument ?? false;
     this.variant = options?.variant;
@@ -50,13 +49,8 @@ export class OperatorAtom extends Atom {
     this.isExtensibleSymbol = options?.isExtensibleSymbol ?? false;
   }
 
-  static fromJson(json: AtomJson, context: GlobalContext): OperatorAtom {
-    return new OperatorAtom(
-      json.command,
-      json.body ? json.body : json.value,
-      context,
-      json as any
-    );
+  static fromJson(json: AtomJson): OperatorAtom {
+    return new OperatorAtom(json.symbol, json as any);
   }
 
   toJson(): AtomJson {
@@ -85,6 +79,7 @@ export class OperatorAtom extends Atom {
         classes: 'op-symbol ' + (large ? 'large-op' : 'small-op'),
         type: 'op',
         maxFontSize: context.scalingFactor,
+        isSelected: this.isSelected,
       });
 
       if (!base) return null;
@@ -102,19 +97,10 @@ export class OperatorAtom extends Atom {
 
       // The slant of the symbol is just its italic correction.
       slant = base.italic;
-      base.setStyle('color', this.style.color);
-      base.setStyle('background-color', this.style.backgroundColor);
-    } else if (this.body) {
-      // If this is a list, decompose that list.
-      base = Atom.createBox(context, this.body, { newList: true });
-
-      if (!base) return null;
-
-      base.setStyle('color', this.style.color);
-      base.setStyle('background-color', this.style.backgroundColor);
+      base.setTop(baseShift);
     } else {
-      // Otherwise, this is a text operator. Build the text from the
-      // operator's name.
+      // Otherwise, this is a text operator (e.g. `\sin`).
+      // Build the text from the operator's name.
       console.assert(this.type === 'mop');
       // Not all styles are applied, since the operators have a distinct
       // appearance (for example, can't override their font family)
@@ -123,16 +109,14 @@ export class OperatorAtom extends Atom {
         mode: 'math',
         maxFontSize: context.scalingFactor,
         style: {
-          color: this.style.color,
-          backgroundColor: this.style.backgroundColor,
-          letterShapeStyle: context.letterShapeStyle,
           variant: this.variant,
           variantStyle: this.variantStyle,
         },
+        isSelected: this.isSelected,
+        letterShapeStyle: context.letterShapeStyle,
       });
     }
 
-    if (this.isExtensibleSymbol) base.setTop(baseShift);
     let result = base;
     if (this.superscript || this.subscript) {
       const limits = this.subsupPlacement ?? 'auto';
@@ -142,17 +126,25 @@ export class OperatorAtom extends Atom {
           : this.attachSupsub(context, { base });
     }
 
-    if (this.caret) result.caret = this.caret;
-
     // Bind the generated box with its limits so they
     // can all be selected as one
     return new Box(this.bind(context, result), {
       type: 'op',
-      classes: 'op-group' + (this.isSelected ? ' ML__selected' : ''),
-    });
+      caret: this.caret,
+      isSelected: this.isSelected,
+      classes: 'op-group',
+    }).wrap(context);
   }
 
-  serialize(options: ToLatexOptions): string {
+  _serialize(options: ToLatexOptions): string {
+    if (
+      !(options.expandMacro || options.skipStyles) &&
+      typeof this.verbatimLatex === 'string'
+    )
+      return this.verbatimLatex;
+    const def = getDefinition(this.command, this.mode);
+    if (def?.serialize) return def.serialize(this, options);
+
     // ZERO-WIDTH?
     if (this.value === '\u200B') return this.supsubToLatex(options);
 
@@ -161,6 +153,7 @@ export class OperatorAtom extends Atom {
     if (this.hasArgument)
       result.push(latexCommand(this.command, this.bodyToLatex(options)));
     else result.push(this.command!);
+
     if (this.explicitSubsupPlacement) {
       if (this.subsupPlacement === 'over-under') result.push('\\limits');
       if (this.subsupPlacement === 'adjacent') result.push('\\nolimits');

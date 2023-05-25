@@ -1,4 +1,4 @@
-import { adjustInterAtomSpacing, Box, makeStruts } from '../core/box';
+import { Box, makeStruts } from '../core/box';
 
 import {
   Rect,
@@ -9,9 +9,11 @@ import {
 } from './utils';
 import type { MathfieldPrivate } from './mathfield-private';
 
-import { Atom, Context, DEFAULT_FONT_SIZE } from '../core/core';
-import { updatePopoverPosition } from '../editor/popover';
+import { updateSuggestionPopoverPosition } from '../editor/suggestion-popover';
 import { gFontsState } from '../core/fonts';
+import { Context } from 'core/context';
+import { Atom } from 'core/atom-class';
+import { applyInterBoxSpacing } from '../core/inter-box-spacing';
 
 /*
  * Return a hash (32-bit integer) representing the content of the mathfield
@@ -52,15 +54,15 @@ function makeBox(
   renderOptions?: { forHighlighting?: boolean; interactive?: boolean }
 ): Box {
   renderOptions = renderOptions ?? {};
-  const context = new Context(
-    {
-      registers: mathfield.registers,
+  const context = new Context({
+    from: {
+      ...mathfield.context,
       atomIdsSettings: {
         // Using the hash as a seed for the ID
         // keeps the IDs the same until the content of the field changes.
         seed: renderOptions.forHighlighting
           ? hash(
-              Atom.serialize(mathfield.model.root, {
+              Atom.serialize([mathfield.model.root], {
                 expandMacro: false,
                 defaultMode: mathfield.options.defaultMode,
               })
@@ -71,21 +73,23 @@ function makeBox(
         // consecutive digits to represent a number.
         groupNumbers: renderOptions.forHighlighting ?? false,
       },
+      letterShapeStyle: mathfield.options.letterShapeStyle as
+        | 'tex'
+        | 'french'
+        | 'iso'
+        | 'upright',
     },
-    {
-      fontSize: DEFAULT_FONT_SIZE,
-      letterShapeStyle: mathfield.options.letterShapeStyle,
-    },
-    mathfield.options.defaultMode === 'inline-math'
-      ? 'textstyle'
-      : 'displaystyle'
-  );
+    mathstyle:
+      mathfield.options.defaultMode === 'inline-math'
+        ? 'textstyle'
+        : 'displaystyle',
+  });
   const base = mathfield.model.root.render(context)!;
 
   //
   // 3. Construct struts around the boxes
   //
-  const wrapper = makeStruts(adjustInterAtomSpacing(base, context), {
+  const wrapper = makeStruts(applyInterBoxSpacing(base, context), {
     classes: mathfield.hasEditablePrompts
       ? 'ML__mathlive ML__prompting'
       : 'ML__mathlive',
@@ -109,28 +113,28 @@ export function contentMarkup(
   // 1. Update selection state and blinking cursor (caret)
   //
   const { model } = mathfield;
-  model.root.caret = '';
+  model.root.caret = undefined;
   model.root.isSelected = false;
   model.root.containsCaret = true;
   for (const atom of model.atoms) {
-    atom.caret = '';
+    atom.caret = undefined;
     atom.isSelected = false;
     atom.containsCaret = false;
   }
-  const hasFocus = mathfield.isSelectionEditable && mathfield.hasFocus();
-  if (model.selectionIsCollapsed)
-    model.at(model.position).caret = hasFocus ? mathfield.mode : '';
-  else {
+  if (model.selectionIsCollapsed) {
+    const hasFocus = mathfield.isSelectionEditable && mathfield.hasFocus();
+    if (hasFocus) {
+      const atom = model.at(model.position);
+      atom.caret = mathfield.model.mode;
+      let ancestor = atom.parent;
+      while (ancestor) {
+        ancestor.containsCaret = true;
+        ancestor = ancestor.parent;
+      }
+    }
+  } else {
     const atoms = model.getAtoms(model.selection, { includeChildren: true });
     for (const atom of atoms) atom.isSelected = true;
-  }
-
-  if (hasFocus) {
-    let ancestor = model.at(model.position).parent;
-    while (ancestor) {
-      ancestor.containsCaret = true;
-      ancestor = ancestor.parent;
-    }
   }
 
   //
@@ -163,12 +167,6 @@ export function render(
   //
   // 1. Hide the virtual keyboard toggle if not applicable
   //
-  //   :host([disabled]) .ML__virtual-keyboard-toggle,
-  // :host([readonly]) .ML__virtual-keyboard-toggle,
-  // :host([read-only]) .ML__virtual-keyboard-toggle,
-  // :host([contenteditable=false]) .ML__virtual-keyboard-toggle {
-  //   display: none;
-  // }
 
   const toggle = mathfield.element?.querySelector<HTMLElement>(
     '[part=virtual-keyboard-toggle]'
@@ -222,8 +220,6 @@ export function renderSelection(
   ))
     element.remove();
 
-  if (!mathfield.hasFocus()) return;
-
   if (
     !(interactive ?? false) &&
     gFontsState !== 'error' &&
@@ -257,7 +253,7 @@ export function renderSelection(
     //
     // 1.1. Display the popover relative to the location of the caret
     //
-    updatePopoverPosition(mathfield, { deferred: true });
+    updateSuggestionPopoverPosition(mathfield, { deferred: true });
 
     //
     // 1.2. Display the 'contains' highlight

@@ -1,11 +1,10 @@
 import type { BoxedExpression } from '@cortex-js/compute-engine';
 
-// @ts-ignore-error
-import MATHFIELD_STYLESHEET from '../../css/mathfield.less';
-// @ts-ignore-error
-import CORE_STYLESHEET from '../../css/core.less';
-
-import type { Keybinding, KeyboardLayoutName } from '../public/options';
+import type {
+  ContentChangeOptions,
+  Keybinding,
+  KeyboardLayoutName,
+} from '../public/options';
 import type {
   Mathfield,
   InsertOptions,
@@ -17,16 +16,13 @@ import type {
 } from '../public/mathfield';
 
 import { canVibrate } from '../common/capabilities';
-import { hashCode } from '../common/hash-code';
-import { Stylesheet, inject as injectStylesheet } from '../common/stylesheet';
 
 import { Atom } from '../core/atom-class';
 import { gFontsState } from '../core/fonts';
 import { defaultBackgroundColorMap, defaultColorMap } from '../core/color';
 import {
-  TokenDefinition,
-  defaultGetDefinition,
   getMacroDefinition,
+  getMacros,
 } from '../core-definitions/definitions-utils';
 import { LatexGroupAtom } from '../core-atoms/latex';
 import { parseLatex, validateLatex } from '../core/parser';
@@ -47,9 +43,16 @@ import {
 } from '../editor-model/composition';
 import { addRowAfter, addColumnAfter } from '../editor-model/array';
 
-import { delegateKeyboardEvents, KeyboardDelegate } from '../editor/keyboard';
+import {
+  delegateKeyboardEvents,
+  KeyboardDelegate,
+  KeyboardDelegateInterface,
+} from '../editor/keyboard';
 import { UndoManager } from '../editor/undo';
-import { disposePopover, updatePopoverPosition } from '../editor/popover';
+import {
+  disposeSuggestionPopover,
+  updateSuggestionPopoverPosition,
+} from '../editor/suggestion-popover';
 import { l10n, localize } from '../core/l10n';
 import {
   HAPTIC_FEEDBACK_DURATION,
@@ -82,6 +85,7 @@ import {
   contentMarkup,
 } from './render';
 
+import '../core-definitions/definitions';
 import './commands';
 import './styling';
 import {
@@ -112,27 +116,26 @@ import type {
   ParseMode,
   Style,
   NormalizedMacroDictionary,
-  Registers,
-  MacroDefinition,
   LatexSyntaxError,
 } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
 import { makeProxy } from '../virtual-keyboard/mathfield-proxy';
-
-let CORE_STYLESHEET_HASH: string | undefined = undefined;
-let MATHFIELD_STYLESHEET_HASH: string | undefined = undefined;
+import type { ContextInterface } from '../core/types';
+import {
+  disposeEnvironmentPopover,
+  hideEnvironmentPopover,
+  updateEnvironmentPopover,
+} from 'editor/environment-popover';
 
 const DEFAULT_KEYBOARD_TOGGLE_GLYPH = `<svg style="width: 21px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path d="M528 64H48C21.49 64 0 85.49 0 112v288c0 26.51 21.49 48 48 48h480c26.51 0 48-21.49 48-48V112c0-26.51-21.49-48-48-48zm16 336c0 8.823-7.177 16-16 16H48c-8.823 0-16-7.177-16-16V112c0-8.823 7.177-16 16-16h480c8.823 0 16 7.177 16 16v288zM168 268v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm-336 80v-24c0-6.627-5.373-12-12-12H84c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm384 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zM120 188v-24c0-6.627-5.373-12-12-12H84c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm96 0v-24c0-6.627-5.373-12-12-12h-24c-6.627 0-12 5.373-12 12v24c0 6.627 5.373 12 12 12h24c6.627 0 12-5.373 12-12zm-96 152v-8c0-6.627-5.373-12-12-12H180c-6.627 0-12 5.373-12 12v8c0 6.627 5.373 12 12 12h216c6.627 0 12-5.373 12-12z"/></svg>`;
 
 /** @internal */
-export class MathfieldPrivate implements GlobalContext, Mathfield {
+export class MathfieldPrivate implements Mathfield, KeyboardDelegateInterface {
   readonly model: ModelPrivate;
 
-  private readonly undoManager: UndoManager;
+  readonly undoManager: UndoManager;
 
   options: Required<MathfieldOptionsPrivate>;
 
-  mode: ParseMode;
   style: Style;
   // When inserting new characters, if not `"none"`, adopt the style
   // (up variant, etc..) from the previous or following atom.
@@ -141,7 +144,7 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   dirty: boolean; // If true, need to be redrawn
   smartModeSuppressed: boolean;
 
-  readonly element:
+  element:
     | (HTMLElement & {
         mathfield?: MathfieldPrivate;
       })
@@ -150,21 +153,15 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   /** The element from which events are emitted, usually a MathfieldElement */
   readonly host: HTMLElement | undefined;
 
-  readonly field: HTMLElement;
+  field: HTMLElement;
   fieldContent: HTMLElement;
   readonly ariaLiveText: HTMLElement;
   // readonly accessibleMathML: HTMLElement;
 
   atomBoundsCache?: Map<string, Rect>;
 
-  popover?: HTMLElement;
-  popoverVisible: boolean;
   suggestionIndex: number;
 
-  envPopover?: HTMLElement;
-  envPopoverVisible: boolean;
-
-  keystrokeCaption?: HTMLElement;
   keystrokeCaptionVisible: boolean;
 
   readonly keyboardDelegate: KeyboardDelegate;
@@ -187,11 +184,12 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
   private valueOnFocus: string;
   private focusBlurInProgress = false;
 
-  private readonly stylesheets: (null | Stylesheet)[] = [];
   private geometryChangeTimer: ReturnType<typeof requestAnimationFrame>;
 
   /** When true, the mathfield is listening to the virtual keyboard */
   private connectedToVirtualKeyboard: boolean;
+
+  private eventController: AbortController;
 
   /**
    *
@@ -213,36 +211,25 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     }
   ) {
     // Setup default config options
-    this.options = updateOptions(
-      { ...getDefaultOptions(), registers: getDefaultRegisters(this) },
-      options
-    );
+    this.options = {
+      ...getDefaultOptions(),
+      macros: getMacros(),
+      registers: getDefaultRegisters(),
+      ...updateOptions(options),
+    };
+
+    this.eventController = new AbortController();
 
     if (options.eventSink) this.host = options.eventSink;
 
     this.element = element;
     element.mathfield = this;
 
-    // Inject the core and mathfield stylesheets
-    if (!CORE_STYLESHEET_HASH)
-      CORE_STYLESHEET_HASH = hashCode(CORE_STYLESHEET).toString(36);
-
-    this.stylesheets.push(
-      injectStylesheet(element, CORE_STYLESHEET, CORE_STYLESHEET_HASH)
-    );
-    if (!MATHFIELD_STYLESHEET_HASH)
-      MATHFIELD_STYLESHEET_HASH = hashCode(MATHFIELD_STYLESHEET).toString(36);
-
-    this.stylesheets.push(
-      injectStylesheet(element, MATHFIELD_STYLESHEET, MATHFIELD_STYLESHEET_HASH)
-    );
-
     // Focus/blur state
     this.blurred = true;
 
-    // The keystroke caption panel and the popover are initially hidden
+    // The keystroke caption panel is initially hidden
     this.keystrokeCaptionVisible = false;
-    this.popoverVisible = false;
 
     // This index indicates which of the suggestions available to
     // display in the popover panel
@@ -252,16 +239,6 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     this.inlineShortcutBufferFlushTimer = 0 as unknown as ReturnType<
       typeof setTimeout
     >;
-
-    // The input mode (text, math, command)
-    // While model.getMode() represent the mode of the current selection,
-    // this.mode is the mode chosen by the user. It indicates the mode the
-    // next character typed will be interpreted in.
-    // It is often identical to getAnchorMode() since changing the selection
-    // changes the mode, but sometimes it is not, for example when a user
-    // enters a mode changing command.
-    this.mode = effectiveMode(this.options);
-    this.smartModeSuppressed = false;
 
     // Current style (color, weight, italic, etc...):
     // reflects the style to be applied on next insertion.
@@ -274,33 +251,31 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
 
     this.dirty = false;
 
+    // Use the content of the element for the initial value of the mathfield
+    let elementText = options.value ?? this.element.textContent ?? '';
+    elementText = elementText.trim();
+
+    // The input mode (text, math, latex).
+    // It indicates the mode the next character typed will be interpreted in,
+    // which may be different from the mode of the current selection.
+    const mode = effectiveMode(this.options);
+
     // Setup the model
-    this.model = new ModelPrivate(
-      {
-        mode: effectiveMode(this.options),
-        macros: this.options.macros as NormalizedMacroDictionary,
-        removeExtraneousParentheses: this.options.removeExtraneousParentheses,
-      },
-      {
-        onSelectionDidChange: () => this._onSelectionDidChange(),
-      },
-      this
-    );
+    const root = new Atom({
+      type: 'root',
+      mode,
+      body: parseLatex(elementText, { context: this.context }),
+    });
+
+    this.model = new ModelPrivate(this, mode, root, {
+      onSelectionDidChange: () => this.onSelectionDidChange(),
+      onContentWillChange: (options) => this.onContentWillChange(options),
+    });
+
+    this.smartModeSuppressed = false;
 
     // Prepare to manage undo/redo
     this.undoManager = new UndoManager(this.model);
-
-    // Use the content of the element for the initial value of the mathfield
-    let elementText = options.value ?? this.element.textContent;
-    if (elementText) elementText = elementText.trim();
-    if (elementText) {
-      ModeEditor.insert('math', this.model, elementText, {
-        insertionMode: 'replaceAll',
-        selectionMode: 'after',
-        format: 'latex',
-        suppressChangeNotifications: true,
-      });
-    }
 
     // Additional elements used for UI.
     const markup: string[] = [];
@@ -327,13 +302,15 @@ export class MathfieldPrivate implements GlobalContext, Mathfield {
     markup.push('</span>');
 
     // 2.1/ The virtual keyboard toggle
-    markup.push(
-      `<div part=virtual-keyboard-toggle class=ML__virtual-keyboard-toggle role=button ${
-        this.hasEditableContent ? '' : 'style="display:none;"'
-      }data-ML__tooltip="${localize('tooltip.toggle virtual keyboard')}">`
-    );
-    markup.push(DEFAULT_KEYBOARD_TOGGLE_GLYPH);
-    markup.push('</div>');
+    if (window.mathVirtualKeyboard) {
+      markup.push(
+        `<div part=virtual-keyboard-toggle class=ML__virtual-keyboard-toggle role=button ${
+          this.hasEditableContent ? '' : 'style="display:none;"'
+        }data-ML__tooltip="${localize('tooltip.toggle virtual keyboard')}">`
+      );
+      markup.push(DEFAULT_KEYBOARD_TOGGLE_GLYPH);
+      markup.push('</div>');
+    }
 
     markup.push('</span>'); // end container
 
@@ -369,27 +346,40 @@ If you are using Vue, this may be because you are using the runtime-only build o
     this.field.addEventListener(
       'click',
       (evt) => evt.stopImmediatePropagation(),
-      { capture: false }
+      { capture: false, signal: this.eventController.signal }
     );
 
     // Listen to 'wheel' events to scroll (horizontally) the field when it overflows
-    this.field.addEventListener('wheel', this, { passive: false });
+    this.field.addEventListener('wheel', this, {
+      passive: false,
+      signal: this.eventController.signal,
+    });
 
     // Delegate pointer events
-    if ('PointerEvent' in window)
-      this.field.addEventListener('pointerdown', this);
-    else this.field.addEventListener('mousedown', this);
+    if ('PointerEvent' in window) {
+      this.field.addEventListener('pointerdown', this, {
+        signal: this.eventController.signal,
+      });
+    } else {
+      this.field.addEventListener('mousedown', this, {
+        signal: this.eventController.signal,
+      });
+    }
 
     this.element
       .querySelector<HTMLElement>('[part=virtual-keyboard-toggle]')
-      ?.addEventListener('click', () => {
-        if (window.mathVirtualKeyboard.visible)
-          window.mathVirtualKeyboard.hide();
-        else {
-          window.mathVirtualKeyboard.show({ animate: true });
-          window.mathVirtualKeyboard.update(makeProxy(this));
-        }
-      });
+      ?.addEventListener(
+        'click',
+        () => {
+          if (window.mathVirtualKeyboard.visible)
+            window.mathVirtualKeyboard.hide();
+          else {
+            window.mathVirtualKeyboard.show({ animate: true });
+            window.mathVirtualKeyboard.update(makeProxy(this));
+          }
+        },
+        { signal: this.eventController.signal }
+      );
 
     this.ariaLiveText = this.element.querySelector('[role=status]')!;
     // this.accessibleMathML = this.element.querySelector('.accessibleMathML')!;
@@ -399,95 +389,23 @@ If you are using Vue, this may be because you are using the runtime-only build o
     this.keyboardDelegate = delegateKeyboardEvents(
       this.element.querySelector('.ML__keyboard-sink')!,
       this.element,
-      {
-        onFocus: () => this.onFocus(),
-        onBlur: () => this.onBlur(),
-        onInput: (text) => onInput(this, text),
-        onKeystroke: (keystroke, event) => onKeystroke(this, keystroke, event),
-        onCompositionStart: (composition) =>
-          this.onCompositionStart(composition),
-        onCompositionUpdate: (composition) =>
-          this.onCompositionUpdate(composition),
-        onCompositionEnd: (composition) => this.onCompositionEnd(composition),
-        onCut: (ev) => {
-          // Ignore if in read-only mode
-          if (!this.isSelectionEditable) {
-            this.model.announce('plonk');
-            return;
-          }
-
-          if (contentWillChange(this.model, { inputType: 'deleteByCut' })) {
-            // Snapshot the undo state
-            this.snapshot();
-
-            // Copy to the clipboard
-            ModeEditor.onCopy(this, ev);
-
-            // Delete the selection
-            deleteRange(this.model, range(this.model.selection), 'deleteByCut');
-
-            requestUpdate(this);
-          }
-        },
-        onCopy: (ev) => ModeEditor.onCopy(this, ev),
-        onPaste: (ev) => {
-          // Ignore if in read-only mode
-          let result = this.isSelectionEditable;
-
-          if (result) {
-            result = ModeEditor.onPaste(
-              this.model.at(this.model.position).mode,
-              this,
-              ev.clipboardData
-            );
-          }
-
-          if (!result) this.model.announce('plonk');
-
-          ev.preventDefault();
-          ev.stopPropagation();
-          return result;
-        },
-      }
+      this
     );
 
     // Request notification for when the window is resized, the device
     // switched from portrait to landscape or the document is scrolled
     // to adjust the UI (popover, etc...)
-    window.addEventListener('resize', this);
-    document.addEventListener('scroll', this);
+    window.addEventListener('resize', this, {
+      signal: this.eventController.signal,
+    });
+    document.addEventListener('scroll', this, {
+      signal: this.eventController.signal,
+    });
 
-    // When the window loses focus, the browser will restore the focus to a
-    // textarea element if it had the focus when the window was blured.
-    // But it doesn't restore the focus for math-field elements (and other
-    // custom elements, presumably). So, listen for when the window loses focus
-    // (during the capture phase, before the mathfield potentially loses focus)\
-    // then, if this mathfield has focus, listen for when the window regains
-    // focus, and restore the focus to this mathfield.
-    // Check for window.top, i.e. that we're not in an iframe. The "window"
-    // object of an iframe also gets sent a blur event when the frame loses focus
-
-    if (window === window.top) {
-      window.addEventListener(
-        'blur',
-        (event) => {
-          if (!event.relatedTarget && isValidMathfield(this) && this.hasFocus()) {
-            window.addEventListener(
-              'focus',
-              (evt) => {
-                if (evt.target === window && isValidMathfield(this))
-                  this.focus({ preventScroll: true });
-              },
-              { once: true }
-            );
-          }
-        },
-        { capture: true }
-      );
-    }
-    // Now start recording potentially undoable actions
-    this.undoManager.startRecording();
-    this.undoManager.snapshot();
+    window.mathVirtualKeyboard.addEventListener(
+      'virtual-keyboard-toggle',
+      this
+    );
 
     if (gKeyboardLayout && !l10n.locale.startsWith(gKeyboardLayout.locale))
       setKeyboardLayoutLocale(l10n.locale);
@@ -503,15 +421,25 @@ If you are using Vue, this may be because you are using the runtime-only build o
     element
       .querySelector<HTMLElement>('.ML__container')!
       .style.removeProperty('visibility');
+
+    // Now start recording potentially undoable actions
+    this.undoManager.startRecording();
+    // Snapshot as 'set-value' operation, so that any other subsequent
+    // `setValue()` gets coalesced
+    this.undoManager.snapshot('set-value');
   }
 
   connectToVirtualKeyboard(): void {
     if (this.connectedToVirtualKeyboard) return;
     this.connectedToVirtualKeyboard = true;
-    window.addEventListener('message', this);
+    window.addEventListener('message', this, {
+      signal: this.eventController.signal,
+    });
     // Connect the kbd or kbd proxy to the current window
     window.mathVirtualKeyboard.connect();
-    window.mathVirtualKeyboard.update(makeProxy(this));
+    if (window.mathVirtualKeyboard.visible)
+      window.mathVirtualKeyboard.update(makeProxy(this));
+    updateEnvironmentPopover(this);
   }
 
   disconnectFromVirtualKeyboard(): void {
@@ -519,54 +447,26 @@ If you are using Vue, this may be because you are using the runtime-only build o
     window.removeEventListener('message', this);
     window.mathVirtualKeyboard.disconnect();
     this.connectedToVirtualKeyboard = false;
+    hideEnvironmentPopover();
   }
 
-  /** Global Context.
-   * These properties are accessed by the atom instances for rendering/layout
-   */
   get colorMap(): (name: string) => string | undefined {
-    return (name: string): string | undefined => {
-      let result: string | undefined = undefined;
-      if (typeof this.options?.colorMap === 'function')
-        result = this.options.colorMap(name);
-
-      if (!result) result = defaultColorMap(name);
-
-      return result;
-    };
+    return (name) => this.options.colorMap?.(name) ?? defaultColorMap(name);
   }
 
   get backgroundColorMap(): (name: string) => string | undefined {
-    return (name: string): string | undefined => {
-      let result: string | undefined = undefined;
-      if (typeof this.options?.backgroundColorMap === 'function')
-        result = this.options.backgroundColorMap(name);
-
-      if (!result && typeof this.options.colorMap === 'function')
-        result = this.options.colorMap(name);
-
-      if (!result) result = defaultBackgroundColorMap(name);
-
-      return result;
-    };
-  }
-
-  get fractionNavigationOrder():
-    | 'numerator-denominator'
-    | 'denominator-numerator' {
-    return window.MathfieldElement.fractionNavigationOrder;
-  }
-
-  get placeholderSymbol(): string {
-    return this.options?.placeholderSymbol ?? '▢';
+    return (name) =>
+      this.options.backgroundColorMap?.(name) ??
+      this.options.colorMap?.(name) ??
+      defaultBackgroundColorMap(name);
   }
 
   get smartFence(): boolean {
-    return this.options?.smartFence ?? false;
+    return this.options.smartFence ?? false;
   }
 
   get readOnly(): boolean {
-    return this.options?.readOnly ?? false;
+    return this.options.readOnly ?? false;
   }
 
   get disabled(): boolean {
@@ -627,12 +527,15 @@ If you are using Vue, this may be because you are using the runtime-only build o
     return false;
   }
 
-  get letterShapeStyle(): 'auto' | 'tex' | 'iso' | 'french' | 'upright' {
-    return this.options?.letterShapeStyle ?? 'tex';
+  get letterShapeStyle(): 'tex' | 'iso' | 'french' | 'upright' {
+    return (
+      (this.options.letterShapeStyle as 'tex' | 'iso' | 'french' | 'upright') ??
+      'tex'
+    );
   }
 
-  get registers(): Registers {
-    return this.options?.registers ?? {};
+  get minFontScale(): number {
+    return this.options.minFontScale;
   }
 
   /** Returns styles shared by all selected atoms */
@@ -668,20 +571,6 @@ If you are using Vue, this may be because you are using the runtime-only build o
     return style!;
   }
 
-  getDefinition(
-    token: string,
-    parseMode: ParseMode = 'math'
-  ): TokenDefinition | null {
-    return defaultGetDefinition(token, parseMode);
-  }
-
-  getMacro(token: string): MacroDefinition | null {
-    return getMacroDefinition(
-      token,
-      this.options.macros as NormalizedMacroDictionary
-    );
-  }
-
   get keybindings(): Keybinding[] {
     if (this._keybindings) return this._keybindings;
 
@@ -704,14 +593,7 @@ If you are using Vue, this may be because you are using the runtime-only build o
   }
 
   setOptions(config: Partial<MathfieldOptionsPrivate>): void {
-    this.options = updateOptions(this.options, config);
-
-    this.model.setListeners({
-      onSelectionDidChange: (_sender: ModelPrivate) =>
-        this._onSelectionDidChange(),
-    });
-    this.model.options.macros = this.options
-      .macros as NormalizedMacroDictionary;
+    this.options = { ...this.options, ...updateOptions(config) };
 
     this._keybindings = undefined;
 
@@ -726,20 +608,32 @@ If you are using Vue, this may be because you are using the runtime-only build o
 
     // Changing some config options (i.e. `macros`) may
     // require the content to be reparsed and re-rendered
-    const content = Atom.serialize(this.model.root, {
+    const content = Atom.serialize([this.model.root], {
       expandMacro: false,
       defaultMode: this.options.defaultMode,
     });
     if ('macros' in config || this.model.getValue() !== content) {
-      ModeEditor.insert('math', this.model, content, {
+      ModeEditor.insert(this.model, content, {
         insertionMode: 'replaceAll',
         selectionMode: 'after',
         format: 'latex',
-        suppressChangeNotifications: true,
+        silenceNotifications: true,
+        mode: 'math',
       });
     }
 
-    requestUpdate(this);
+    if (
+      'value' in config ||
+      'macros' in config ||
+      'registers' in config ||
+      'colorMap' in config ||
+      'backgroundColorMap' in config ||
+      'letterShapeStyle' in config ||
+      'minFontScale' in config ||
+      'readOnly' in config ||
+      'placeholderSymbol' in config
+    )
+      requestUpdate(this);
   }
 
   getOptions<K extends keyof MathfieldOptionsPrivate>(
@@ -770,7 +664,6 @@ If you are using Vue, this may be because you are using the runtime-only build o
   handleEvent(evt: Event): void {
     if (!isValidMathfield(this)) return;
     if (isVirtualKeyboardMessage(evt)) {
-      // console.log('mf received ', evt.data.action, evt);
       if (!validateOrigin(evt.origin, this.options.originValidator ?? 'none')) {
         throw new DOMException(
           `Message from unknown origin (${evt.origin}) cannot be handled`,
@@ -808,6 +701,10 @@ If you are using Vue, this may be because you are using the runtime-only build o
         onPointerDown(this, evt as PointerEvent);
         break;
 
+      case 'virtual-keyboard-toggle':
+        if (this.hasFocus()) updateEnvironmentPopover(this);
+        break;
+
       case 'resize':
         if (this.geometryChangeTimer)
           cancelAnimationFrame(this.geometryChangeTimer);
@@ -838,30 +735,31 @@ If you are using Vue, this may be because you are using the runtime-only build o
   dispose(): void {
     if (!isValidMathfield(this)) return;
 
+    this.keyboardDelegate.dispose();
+    (this as any).keyboardDelegate = undefined;
+    this.eventController.abort();
+
+    window.mathVirtualKeyboard.removeEventListener(
+      'virtual-keyboard-toggle',
+      this
+    );
+
     this.disconnectFromVirtualKeyboard();
 
+    this.model.dispose();
+
     const element = this.element!;
-    delete (this as any).element;
     delete element.mathfield;
+    this.element = undefined;
 
-    element.innerHTML = this.model.getValue();
+    (this as any).host = undefined;
+    (this as any).field = undefined;
+    (this as any).fieldContent = undefined;
+    (this as any).ariaLiveText = undefined;
 
-    element.removeEventListener('pointerdown', this);
-    element.removeEventListener('mousedown', this);
-    element.removeEventListener('focus', this);
-    element.removeEventListener('blur', this);
-    window.removeEventListener('resize', this);
-    document.removeEventListener('scroll', this);
-    window.removeEventListener('blur', this, { capture: true });
-
-    // delete (this as any).accessibleMathML;
-    delete (this as any).ariaLiveText;
-    delete (this as any).field;
-    delete (this as any).fieldContent;
-    disposePopover(this);
-    disposeKeystrokeCaption(this);
-
-    this.stylesheets.forEach((x) => x?.release());
+    disposeKeystrokeCaption();
+    disposeSuggestionPopover();
+    disposeEnvironmentPopover();
   }
 
   flushInlineShortcutBuffer(options?: { defer: boolean }): void {
@@ -901,7 +799,7 @@ If you are using Vue, this may be because you are using the runtime-only build o
   }
 
   get errors(): LatexSyntaxError[] {
-    return validateLatex(this.model.getValue(), this);
+    return validateLatex(this.model.getValue(), { context: this.context });
   }
 
   getValue(): string;
@@ -925,13 +823,12 @@ If you are using Vue, this may be because you are using the runtime-only build o
     if (options.format === undefined || options.format === 'auto')
       options.format = 'latex';
 
-    let mode: ParseMode = 'math';
     if (options.mode === undefined || options.mode === 'auto')
-      mode = getMode(this.model, this.model.position) ?? 'math';
+      options.mode = getMode(this.model, this.model.position) ?? 'math';
 
-    if (ModeEditor.insert(mode, this.model, value, options)) {
-      this.undoManager.snapshot();
+    if (ModeEditor.insert(this.model, value, options)) {
       requestUpdate(this);
+      this.undoManager.snapshot('set-value');
     }
   }
 
@@ -943,7 +840,7 @@ If you are using Vue, this may be because you are using the runtime-only build o
       );
       return null;
     }
-    return ce.box(ce.parse(this.model.getValue()));
+    return ce.box(ce.parse(this.model.getValue('latex-unstyled')));
   }
 
   /** Make sure the caret is visible within the matfield.
@@ -1081,21 +978,24 @@ If you are using Vue, this may be because you are using the runtime-only build o
     } else if (s === '&') addColumnAfter(this.model);
     else {
       const savedStyle = this.style;
-      ModeEditor.insert(this.mode, this.model, s, {
-        style: this.model.at(this.model.position).computedStyle,
-        ...options,
-      });
+      if (this.model.selectionIsCollapsed) {
+        ModeEditor.insert(this.model, s, {
+          style: this.model.at(this.model.position).computedStyle,
+          ...options,
+        });
+      } else ModeEditor.insert(this.model, s, options);
       if (options.resetStyle) this.style = savedStyle;
     }
 
-    this.undoManager.snapshot();
+    this.snapshot(`insert-${this.model.at(this.model.position).type}`);
+
     requestUpdate(this);
     return true;
   }
 
   switchMode(mode: ParseMode, prefix = '', suffix = ''): void {
     if (
-      this.mode === mode ||
+      this.model.mode === mode ||
       !this.hasEditableContent ||
       !this.contentEditable ||
       this.disabled
@@ -1115,7 +1015,7 @@ If you are using Vue, this may be because you are using the runtime-only build o
       return;
 
     // Notify of mode change
-    const currentMode = this.mode;
+    const currentMode = this.model.mode;
     const { model } = this;
     model.deferNotifications(
       {
@@ -1126,12 +1026,16 @@ If you are using Vue, this may be because you are using the runtime-only build o
       (): boolean => {
         let contentChanged = false;
         this.flushInlineShortcutBuffer();
+        this.stopCoalescingUndo();
         // Suppress (temporarily) smart mode if switching to/from text or math
         // This prevents switching to/from command mode from suppressing smart mode.
         this.smartModeSuppressed =
-          /text|math/.test(this.mode) && /text|math/.test(mode);
+          /text|math/.test(this.model.mode) && /text|math/.test(mode);
         if (prefix && mode !== 'latex') {
-          const atoms = parseLatex(prefix, this, { parseMode: mode });
+          const atoms = parseLatex(prefix, {
+            context: this.context,
+            parseMode: mode,
+          });
           model.collapseSelection('forward');
           const cursor = model.at(model.position);
           model.position = model.offsetOf(
@@ -1140,7 +1044,7 @@ If you are using Vue, this may be because you are using the runtime-only build o
           contentChanged = true;
         }
 
-        this.mode = mode;
+        this.model.mode = mode;
 
         if (mode === 'latex') {
           let wasCollapsed = model.selectionIsCollapsed;
@@ -1168,7 +1072,7 @@ If you are using Vue, this may be because you are using the runtime-only build o
             cursor = model.at(selRange[0]);
           }
 
-          const atom = new LatexGroupAtom(latex, this);
+          const atom = new LatexGroupAtom(latex);
           cursor.parent!.addChildAfter(atom, cursor);
           if (wasCollapsed) model.position = model.offsetOf(atom.lastChild);
           else {
@@ -1185,7 +1089,10 @@ If you are using Vue, this may be because you are using the runtime-only build o
         }
 
         if (suffix) {
-          const atoms = parseLatex(suffix, this, { parseMode: currentMode });
+          const atoms = parseLatex(suffix, {
+            context: this.context,
+            parseMode: currentMode,
+          });
           model.collapseSelection('forward');
           const cursor = model.at(model.position);
           model.position = model.offsetOf(
@@ -1195,11 +1102,12 @@ If you are using Vue, this may be because you are using the runtime-only build o
         }
 
         requestUpdate(this);
+        this.undoManager.snapshot(mode === 'latex' ? 'insert-latex' : 'insert');
         return contentChanged;
       }
     );
 
-    this.mode = mode;
+    this.model.mode = mode;
   }
 
   hasFocus(): boolean {
@@ -1228,18 +1136,17 @@ If you are using Vue, this may be because you are using the runtime-only build o
   applyStyle(inStyle: Style, inOptions: Range | ApplyStyleOptions = {}): void {
     const options: ApplyStyleOptions = {
       operation: 'set',
-      suppressChangeNotifications: false,
+      silenceNotifications: false,
     };
     if (isRange(inOptions)) options.range = inOptions;
     else {
       options.range = inOptions.range;
-      options.suppressChangeNotifications =
-        inOptions.suppressChangeNotifications ?? false;
+      options.silenceNotifications = inOptions.silenceNotifications ?? false;
     }
     const style = validateStyle(this, inStyle);
     const operation = options.operation ?? 'set';
     this.model.deferNotifications(
-      { content: !options.suppressChangeNotifications, type: 'insertText' },
+      { content: !options.silenceNotifications, type: 'insertText' },
       () => {
         if (options.range === undefined) {
           for (const range of this.model.selection.ranges)
@@ -1334,7 +1241,7 @@ If you are using Vue, this may be because you are using the runtime-only build o
         insertionMode: 'replaceSelection',
       });
     }
-    if (insertOptions?.suppressChangeNotifications)
+    if (insertOptions?.silenceNotifications)
       this.valueOnFocus = this.getValue();
     requestUpdate(this);
   }
@@ -1408,9 +1315,10 @@ If you are using Vue, this may be because you are using the runtime-only build o
     this.undoManager.pop();
   }
 
-  snapshot(): void {
-    if (this.undoManager.snapshot()) {
-      window.mathVirtualKeyboard.update(makeProxy(this));
+  snapshot(op?: string): void {
+    if (this.undoManager.snapshot(op)) {
+      if (window.mathVirtualKeyboard.visible)
+        window.mathVirtualKeyboard.update(makeProxy(this));
       this.host?.dispatchEvent(
         new CustomEvent('undo-state-change', {
           bubbles: true,
@@ -1421,23 +1329,22 @@ If you are using Vue, this may be because you are using the runtime-only build o
     }
   }
 
-  snapshotAndCoalesce(): void {
-    if (this.undoManager.snapshotAndCoalesce()) {
-      window.mathVirtualKeyboard.update(makeProxy(this));
-      this.host?.dispatchEvent(
-        new CustomEvent('undo-state-change', {
-          bubbles: true,
-          composed: true,
-          detail: { type: 'snapshot' },
-        })
-      );
-    }
+  stopCoalescingUndo(): void {
+    this.undoManager.stopCoalescing(this.model.selection);
+  }
+
+  stopRecording(): void {
+    this.undoManager.stopRecording();
+  }
+
+  startRecording(): void {
+    this.undoManager.startRecording();
   }
 
   undo(): void {
     if (!this.undoManager.undo()) return;
-    console.log('updating');
-    window.mathVirtualKeyboard.update(makeProxy(this));
+    if (window.mathVirtualKeyboard.visible)
+      window.mathVirtualKeyboard.update(makeProxy(this));
     this.host?.dispatchEvent(
       new CustomEvent('undo-state-change', {
         bubbles: true,
@@ -1449,7 +1356,8 @@ If you are using Vue, this may be because you are using the runtime-only build o
 
   redo(): void {
     if (!this.undoManager.redo()) return;
-    window.mathVirtualKeyboard.update(makeProxy(this));
+    if (window.mathVirtualKeyboard.visible)
+      window.mathVirtualKeyboard.update(makeProxy(this));
     this.host?.dispatchEvent(
       new CustomEvent('undo-state-change', {
         bubbles: true,
@@ -1463,21 +1371,21 @@ If you are using Vue, this may be because you are using the runtime-only build o
     this.undoManager?.reset();
   }
 
-  private _onSelectionDidChange(): void {
+  private onSelectionDidChange(): void {
     const model = this.model;
 
     // Keep the content of the keyboard sink in sync with the selection.
     // Safari will not dispatch cut/copy/paste unless there is a DOM selection.
     this.keyboardDelegate.setValue(
-      this.model.getValue(this.model.selection, 'latex-expanded')
+      model.getValue(this.model.selection, 'latex-expanded')
     );
 
     // Adjust mode
     {
       const cursor = model.at(model.position);
       const newMode = cursor.mode ?? effectiveMode(this.options);
-      if (this.mode !== newMode) {
-        if (this.mode === 'latex') {
+      if (this.model.mode !== newMode) {
+        if (this.model.mode === 'latex') {
           complete(this, 'accept', { mode: newMode });
           model.position = model.offsetOf(cursor);
         } else this.switchMode(newMode);
@@ -1491,14 +1399,36 @@ If you are using Vue, this may be because you are using the runtime-only build o
         composed: true,
       })
     );
+
+    if (window.mathVirtualKeyboard.visible)
+      window.mathVirtualKeyboard.update(makeProxy(this));
+
+    updateEnvironmentPopover(this);
   }
 
-  private onFocus(): void {
+  private onContentWillChange(options: ContentChangeOptions): boolean {
+    return (
+      this.host?.dispatchEvent(
+        new InputEvent('beforeinput', {
+          ...options,
+          // To work around a bug in WebKit/Safari (the inputType property gets stripped), include the inputType as the 'data' property. (see #1843)
+          data: options.data ? options.data : options.inputType ?? '',
+          cancelable: true,
+          bubbles: true,
+          composed: true,
+        })
+      ) ?? true
+    );
+  }
+
+  onFocus(): void {
     if (this.focusBlurInProgress || !this.blurred) return;
     this.focusBlurInProgress = true;
     this.blurred = false;
     // As a side effect, a `focus` and `focusin` events will be dispatched
     this.keyboardDelegate.focus();
+
+    this.stopCoalescingUndo();
 
     render(this, { interactive: true });
 
@@ -1519,9 +1449,11 @@ If you are using Vue, this may be because you are using the runtime-only build o
     this.focusBlurInProgress = false;
   }
 
-  private onBlur(): void {
+  onBlur(): void {
     if (this.focusBlurInProgress || this.blurred) return;
     this.focusBlurInProgress = true;
+
+    this.stopCoalescingUndo();
 
     this.blurred = true;
     this.ariaLiveText!.textContent = '';
@@ -1553,9 +1485,57 @@ If you are using Vue, this may be because you are using the runtime-only build o
     requestUpdate(this);
 
     this.focusBlurInProgress = false;
+
+    hideEnvironmentPopover();
+
+    //
+    // When the document/window loses focus, for example by switching
+    // to another tab, the mathfield will be blured. When the window
+    // regains focus, we'd like the focus to be restored on the mahtfield,
+    // like the browsers do for `<textarea>` elements. However, they
+    // don't do that for custom elements, so we do it ourselves. @futureweb
+    //
+
+    // Wait for the window/document visibility to change
+    // (the mathfield gets blurred before the window)
+    const controller = new AbortController();
+    const signal = controller.signal;
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        if (document.visibilityState === 'hidden') {
+          document.addEventListener(
+            'visibilitychange',
+            () => {
+              if (
+                isValidMathfield(this) &&
+                document.visibilityState === 'visible'
+              )
+                this.focus({ preventScroll: true });
+            },
+            { once: true }
+          );
+        }
+      },
+      { once: true, signal }
+    );
+
+    // If we haven't received a visibility change after a short delay,
+    // stop waiting for it (the delay has to be longer than at least
+    // 16ms: the documents that are not visible are throttled by the
+    // browser)
+    setTimeout(() => controller.abort(), 100);
   }
 
-  private onCompositionStart(_composition: string): void {
+  onInput(text: string): void {
+    onInput(this, text);
+  }
+
+  onKeystroke(keystroke: string, evt: KeyboardEvent): boolean {
+    return onKeystroke(this, keystroke, evt);
+  }
+
+  onCompositionStart(_composition: string): void {
     // Clear the selection if there is one
     this.model.deleteAtoms(range(this.model.selection));
     const caretPoint = getCaretPoint(this.field!);
@@ -1571,21 +1551,65 @@ If you are using Vue, this may be because you are using the runtime-only build o
     });
   }
 
-  private onCompositionUpdate(composition: string): void {
+  onCompositionUpdate(composition: string): void {
     updateComposition(this.model, composition);
     requestUpdate(this);
   }
 
-  private onCompositionEnd(composition: string): void {
+  onCompositionEnd(composition: string): void {
     removeComposition(this.model);
-    onInput(this, composition, {
-      simulateKeystroke: true,
-    });
+    onInput(this, composition, { simulateKeystroke: true });
+  }
+
+  onCut(ev: ClipboardEvent): void {
+    // Ignore if in read-only mode
+    if (!this.isSelectionEditable) {
+      this.model.announce('plonk');
+      return;
+    }
+
+    if (contentWillChange(this.model, { inputType: 'deleteByCut' })) {
+      // Snapshot the undo state
+      this.stopCoalescingUndo();
+
+      // Copy to the clipboard
+      ModeEditor.onCopy(this, ev);
+
+      // Delete the selection
+      deleteRange(this.model, range(this.model.selection), 'deleteByCut');
+
+      this.snapshot('cut');
+
+      requestUpdate(this);
+    }
+  }
+
+  onCopy(ev: ClipboardEvent): void {
+    ModeEditor.onCopy(this, ev);
+  }
+
+  onPaste(ev: ClipboardEvent): boolean {
+    // Ignore if in read-only mode
+    let result = this.isSelectionEditable;
+
+    if (result) {
+      result = ModeEditor.onPaste(
+        this.model.at(this.model.position).mode,
+        this,
+        ev.clipboardData
+      );
+    }
+
+    if (!result) this.model.announce('plonk');
+
+    ev.preventDefault();
+    ev.stopPropagation();
+    return result;
   }
 
   private onGeometryChange(): void {
-    updatePopoverPosition(this);
-    window.mathVirtualKeyboard.updateEnvironmemtPopover(makeProxy(this));
+    updateSuggestionPopoverPosition(this);
+    updateEnvironmentPopover(this);
   }
 
   private onWheel(ev: WheelEvent): void {
@@ -1608,15 +1632,30 @@ If you are using Vue, this may be because you are using the runtime-only build o
   }
 
   getHTMLElement(atom: Atom): HTMLSpanElement {
-    // find an atom id in this atom or its children
+    // Find an atom id in this atom or its children
     let target = atom;
     while (!target.id && target.hasChildren) target = atom.children[0];
 
-    if (target.id) {
-      return this.fieldContent?.querySelector(
-        `[data-atom-id="${target.id}"]`
-      ) as HTMLSpanElement;
-    }
-    throw new TypeError('Could not get an ID from atom');
+    return this.fieldContent!.querySelector(
+      `[data-atom-id="${target.id}"]`
+    ) as HTMLSpanElement;
+  }
+
+  get context(): ContextInterface {
+    return {
+      registers: this.options.registers ?? {},
+      smartFence: this.smartFence,
+      letterShapeStyle: this.letterShapeStyle,
+      minFontScale: this.minFontScale,
+      placeholderSymbol: this.options.placeholderSymbol ?? '▢',
+      colorMap: (name) => this.colorMap(name),
+      backgroundColorMap: (name) => this.backgroundColorMap(name),
+      getMacro: (token) =>
+        getMacroDefinition(
+          token,
+          this.options.macros as NormalizedMacroDictionary
+        ),
+      atomIdsSettings: { seed: 'random', groupNumbers: false },
+    };
   }
 }

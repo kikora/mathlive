@@ -4,40 +4,29 @@ import '../virtual-keyboard/global';
 import { makeProxy } from '../virtual-keyboard/mathfield-proxy';
 
 export type ModelListeners = {
-  onSelectionDidChange: (sender: ModelPrivate) => void;
+  onSelectionDidChange: () => void;
+  onContentWillChange: (options: ContentChangeOptions) => boolean;
 };
 
 export function selectionDidChange(model: ModelPrivate): void {
-  if (
-    typeof model.listeners?.onSelectionDidChange === 'function' &&
-    !model.suppressChangeNotifications
-  ) {
-    model.suppressChangeNotifications = true;
-    model.listeners.onSelectionDidChange(model);
-    model.suppressChangeNotifications = false;
-  }
-  window.mathVirtualKeyboard.update(makeProxy(model.mathfield));
+  if (window.mathVirtualKeyboard.visible)
+    window.mathVirtualKeyboard.update(makeProxy(model.mathfield));
+
+  if (model.silenceNotifications) return;
+  model.silenceNotifications = true;
+  model.listeners.onSelectionDidChange();
+  model.silenceNotifications = false;
 }
 
 export function contentWillChange(
   model: ModelPrivate,
   options: ContentChangeOptions = {}
 ): boolean {
-  if (model.suppressChangeNotifications || !model.mathfield.host) return true;
+  if (model.silenceNotifications) return true;
 
-  model.suppressChangeNotifications = true;
-  const result = model.mathfield.host.dispatchEvent(
-    new InputEvent('beforeinput', {
-      ...options,
-      // To work around a bug in WebKit/Safari (the inputType property gets stripped), include the inputType as the 'data' property. (see #1843)
-      data: options.data ? options.data : options.inputType ?? '',
-      cancelable: true,
-      bubbles: true,
-      composed: true,
-    })
-  );
-
-  model.suppressChangeNotifications = false;
+  model.silenceNotifications = true;
+  const result = model.listeners.onContentWillChange(options);
+  model.silenceNotifications = false;
   return result;
 }
 
@@ -45,10 +34,11 @@ export function contentDidChange(
   model: ModelPrivate,
   options: ContentChangeOptions
 ): void {
-  window.mathVirtualKeyboard.update(makeProxy(model.mathfield));
-  if (model.suppressChangeNotifications || !model.mathfield.host) return;
+  if (window.mathVirtualKeyboard.visible)
+    window.mathVirtualKeyboard.update(makeProxy(model.mathfield));
+  if (model.silenceNotifications || !model.mathfield.host) return;
 
-  model.suppressChangeNotifications = true;
+  model.silenceNotifications = true;
   model.mathfield.host.dispatchEvent(
     new InputEvent('input', {
       ...options,
@@ -58,16 +48,16 @@ export function contentDidChange(
       composed: true,
     } as InputEventInit)
   );
-  model.suppressChangeNotifications = false;
+  model.silenceNotifications = false;
 }
 
 export function placeholderDidChange(
   model: ModelPrivate,
   placeholderId: string
 ): void {
-  if (model.suppressChangeNotifications || !model.mathfield.host) return;
+  if (model.silenceNotifications || !model.mathfield.host) return;
 
-  model.suppressChangeNotifications = true;
+  model.silenceNotifications = true;
   model.mathfield.host.dispatchEvent(
     new CustomEvent('placeholder-change', {
       detail: { placeholderId },
@@ -75,66 +65,66 @@ export function placeholderDidChange(
       composed: true,
     })
   );
-  model.suppressChangeNotifications = false;
+  model.silenceNotifications = false;
 }
 
-export interface Disposable {
-  dispose(): void;
-}
+// export interface Disposable {
+//   dispose(): void;
+// }
 
-export type EventListener = (...payload: unknown[]) => void;
+// export type EventListener = (...payload: unknown[]) => void;
 
-export class EventEmitter {
-  events: Map<string, EventListener[]>;
+// export class EventEmitter {
+//   events: Map<string, EventListener[]>;
 
-  constructor() {
-    this.events = new Map();
-  }
+//   constructor() {
+//     this.events = new Map();
+//   }
 
-  addListener(
-    event: string,
-    listener: EventListener,
-    options?: { once?: boolean }
-  ): Disposable {
-    if (!this.events.has(event)) this.events.set(event, []);
+//   addListener(
+//     event: string,
+//     listener: EventListener,
+//     options?: { once?: boolean }
+//   ): Disposable {
+//     if (!this.events.has(event)) this.events.set(event, []);
 
-    options = options ?? {};
-    if (options.once ?? false) {
-      listener = (...payload: unknown[]): void => {
-        this.events.get(event)?.filter((x) => x !== listener);
-        listener.apply(this, ...payload);
-      };
-    }
+//     options = options ?? {};
+//     if (options.once ?? false) {
+//       listener = (...payload: unknown[]): void => {
+//         this.events.get(event)?.filter((x) => x !== listener);
+//         listener.apply(this, ...payload);
+//       };
+//     }
 
-    this.events.get(event)?.push(listener);
-    return {
-      dispose: (): void => {
-        this.events.set(
-          event,
-          this.events.get(event)!.filter((x) => x !== listener)
-        );
-      },
-    };
-  }
+//     this.events.get(event)?.push(listener);
+//     return {
+//       dispose: (): void => {
+//         this.events.set(
+//           event,
+//           this.events.get(event)!.filter((x) => x !== listener)
+//         );
+//       },
+//     };
+//   }
 
-  on(event: string, listener: EventListener): Disposable {
-    return this.addListener(event, listener);
-  }
+//   on(event: string, listener: EventListener): Disposable {
+//     return this.addListener(event, listener);
+//   }
 
-  once(event: string, listener: EventListener): Disposable {
-    return this.addListener(event, listener, { once: true });
-  }
+//   once(event: string, listener: EventListener): Disposable {
+//     return this.addListener(event, listener, { once: true });
+//   }
 
-  emit(event: string, ...payload: unknown[]): boolean {
-    const listeners = this.events.get(event);
-    if (listeners && listeners.length > 0) {
-      for (const listener of listeners) listener.apply(this, ...payload);
-      return true;
-    }
+//   emit(event: string, ...payload: unknown[]): boolean {
+//     const listeners = this.events.get(event);
+//     if (listeners && listeners.length > 0) {
+//       for (const listener of listeners) listener.apply(this, ...payload);
+//       return true;
+//     }
 
-    return false;
-  }
-}
+//     return false;
+//   }
+// }
 
 /*
 // type User = { name: string };

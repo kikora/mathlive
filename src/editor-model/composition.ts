@@ -16,10 +16,10 @@ export function updateComposition(model: ModelPrivate, s: string): void {
 
     // Remove previous caret
     const { caret } = cursor;
-    cursor.caret = '';
+    cursor.caret = undefined;
 
     // Create 'composition' atom, with caret
-    const atom = new CompositionAtom(s, model.mathfield, { mode: cursor.mode });
+    const atom = new CompositionAtom(s, { mode: cursor.mode });
     atom.caret = caret;
     cursor.parent!.addChildAfter(atom, cursor);
 

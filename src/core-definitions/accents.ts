@@ -1,17 +1,13 @@
 import { Atom } from '../core/atom-class';
 import { AccentAtom } from '../core-atoms/accent';
 import { OverunderAtom } from '../core-atoms/overunder';
-import type { Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
 
 import {
-  Argument,
   argAtoms,
   defineFunction,
   parseArgAsString,
 } from './definitions-utils';
 import { atomsBoxType } from '../core/box';
-import { PlaceholderAtom } from '../core-atoms/placeholder';
 
 const ACCENTS = {
   acute: 0x02ca,
@@ -28,37 +24,23 @@ const ACCENTS = {
 };
 
 defineFunction(Object.keys(ACCENTS), '{body:auto}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom => {
-    return new AccentAtom(
-      command,
-      !args[0] ? [new PlaceholderAtom(context)] : argAtoms(args[0]),
-      context,
-      {
-        accentChar: ACCENTS[command.slice(1)],
-        style,
-      }
-    );
-  },
+  createAtom: (options) =>
+    new AccentAtom({
+      ...options,
+      body: argAtoms(options.args![0]),
+      accentChar: ACCENTS[options.command!.slice(1)],
+    }),
 });
 
 defineFunction(['widehat', 'widecheck', 'widetilde'], '{body:auto}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom => {
+  createAtom: (options) => {
     // Pick the correct SVG template based on the length of the body
-    const baseString = parseArgAsString(argAtoms(args[0]));
-    return new AccentAtom(command, argAtoms(args[0]), context, {
-      style,
+    const baseString = parseArgAsString(argAtoms(options.args![0]));
+    return new AccentAtom({
+      ...options,
+      body: argAtoms(options.args![0]),
       svgAccent:
-        command.slice(1) +
+        options.command!.slice(1) +
         (baseString.length > 5
           ? '4'
           : ['1', '1', '2', '2', '3', '3'][baseString.length]),
@@ -67,51 +49,38 @@ defineFunction(['widehat', 'widecheck', 'widetilde'], '{body:auto}', {
 });
 
 defineFunction(['overarc', 'overparen', 'wideparen'], '{body:auto}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom => {
-    return new AccentAtom(command, argAtoms(args[0]), context, {
-      style,
+  createAtom: (options) => {
+    return new AccentAtom({
+      ...options,
+      body: argAtoms(options.args![0]),
       svgAccent: 'overarc',
     });
   },
 });
 defineFunction(['underarc', 'underparen'], '{body:auto}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom => {
-    return new OverunderAtom(command, context, {
-      body: argAtoms(args[0]),
-      style,
+  createAtom: (options) => {
+    return new OverunderAtom({
+      ...options,
+      body: argAtoms(options.args![0]),
       svgBelow: 'underarc',
     });
   },
 });
 
 defineFunction('utilde', '{body:auto}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom => {
-    const baseString = parseArgAsString(argAtoms(args[0]));
+  createAtom: (options) => {
+    const body = argAtoms(options.args![0]);
+    const baseString = parseArgAsString(body);
     const accent =
       'widetilde' +
       (baseString.length > 5
         ? '4'
         : ['1', '1', '2', '2', '3', '3'][baseString.length]);
-    return new OverunderAtom(command, context, {
-      body: argAtoms(args[0]),
+    return new OverunderAtom({
+      ...options,
+      body,
       svgBelow: accent,
-      style,
-      boxType: atomsBoxType(argAtoms(args[0])),
+      boxType: atomsBoxType(body),
     });
   },
 });
@@ -122,18 +91,13 @@ defineFunction('utilde', '{body:auto}', {
  */
 
 defineFunction('^', '{:string}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom =>
-    new Atom('mord', context, {
-      command,
+  createAtom: (options) =>
+    new Atom({
+      ...options,
+      type: 'mord',
       isFunction: false,
       limits: 'adjacent',
-      style,
-      value: args[0]
+      value: options.args![0]
         ? {
             a: 'â',
             e: 'ê',
@@ -145,24 +109,19 @@ defineFunction('^', '{:string}', {
             I: 'Î',
             O: 'Ô',
             U: 'Û',
-          }[args[0] as string] ?? '^'
+          }[options.args![0] as string] ?? '^'
         : '^',
     }),
 });
 
 defineFunction('`', '{:string}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom =>
-    new Atom('mord', context, {
-      command,
+  createAtom: (options) =>
+    new Atom({
+      ...options,
+      type: 'mord',
       isFunction: false,
       limits: 'adjacent',
-      style,
-      value: args[0]
+      value: options.args![0]
         ? {
             a: 'à',
             e: 'è',
@@ -174,24 +133,19 @@ defineFunction('`', '{:string}', {
             I: 'Ì',
             O: 'Ò',
             U: 'Ù',
-          }[args[0] as string] ?? '`'
+          }[options.args![0] as string] ?? '`'
         : '`',
     }),
 });
 
 defineFunction("'", '{:string}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom =>
-    new Atom('mord', context, {
-      command,
+  createAtom: (options) =>
+    new Atom({
+      ...options,
+      type: 'mord',
       isFunction: false,
       limits: 'adjacent',
-      style,
-      value: args[0]
+      value: options.args![0]
         ? {
             a: 'á',
             e: 'é',
@@ -203,43 +157,35 @@ defineFunction("'", '{:string}', {
             I: 'Í',
             O: 'Ó',
             U: 'Ú',
-          }[args[0] as string] ?? '\u005E'
+          }[options.args![0] as string] ?? '\u005E'
         : '\u005E',
     }),
 });
 
 defineFunction('~', '{:string}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom =>
-    new Atom('mord', context, {
-      command,
+  createAtom: (options) =>
+    new Atom({
+      type: 'mord',
+      ...options,
       isFunction: false,
       limits: 'adjacent',
-      style,
-      value: args[0]
+      value: options.args![0]
         ? { n: 'ñ', N: 'Ñ', a: 'ã', o: 'õ', A: 'Ã', O: 'Õ' }[
-            args[0] as string
+            options.args![0] as string
           ] ?? '\u00B4'
         : '\u00B4',
     }),
 });
 
 defineFunction('c', '{:string}', {
-  createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: Argument[]
-  ): Atom =>
-    new Atom('mord', context, {
-      command,
+  createAtom: (options) =>
+    new Atom({
+      ...options,
+      type: 'mord',
       isFunction: false,
       limits: 'adjacent',
-      style,
-      value: args[0] ? { c: 'ç', C: 'Ç' }[args[0] as string] ?? '' : '',
+      value: options.args![0]
+        ? { c: 'ç', C: 'Ç' }[options.args![0] as string] ?? ''
+        : '',
     }),
 });

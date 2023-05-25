@@ -9,9 +9,9 @@ import { Mode } from './modes-utils';
 import { BoxInterface, BoxOptions, BoxType } from './types';
 import { Atom, AtomType } from './atom-class';
 
-export function boxType(type: AtomType): BoxType | undefined {
+export function boxType(type: AtomType | undefined): BoxType | undefined {
+  if (!type) return undefined;
   const result = {
-    chem: 'chem',
     mord: 'ord',
     mbin: 'bin',
     mop: 'op',
@@ -20,13 +20,12 @@ export function boxType(type: AtomType): BoxType | undefined {
     mclose: 'close',
     mpunct: 'punct',
     minner: 'inner',
-    spacing: 'spacing',
-    first: 'first',
+    spacing: 'ignore',
     latex: 'latex',
-    composition: 'composition',
-    error: 'error',
-    placeholder: 'placeholder',
-    supsub: 'supsub',
+    composition: 'inner',
+    error: 'inner',
+    placeholder: 'ord',
+    supsub: 'ignore',
   }[type];
 
   return result;
@@ -39,56 +38,6 @@ export function atomsBoxType(atoms: Atom[]): BoxType {
   if (first && first === last) return first;
   return 'ord';
 }
-
-/*
- * See http://www.tug.org/TUGboat/tb30-3/tb96vieth.pdf for
- * typesetting conventions for mathematical physics (units, etc...)
- */
-
-/**
- *
- *
- * > In fact, TEX’s rules for spacing in formulas are fairly simple. A
- * > formula is converted to a math list as described at the end of Chapter 17,
- * > and the math list consists chiefly of “atoms” of eight basic types:
- * > Ord (ordinary), Op (large operator), Bin (binary operation),
- * > Rel (relation), Open (opening), Close (closing), Punct (punctuation),
- * > and Inner (a delimited subformula).
- * > Other kinds of atoms, which arise from commands like \overline or
- * > \mathaccent or \vcenter, etc., are all treated as type Ord; fractions are
- * > treated as type Inner.
- *
- * > The following table is used to determine the spacing between pair of
- * > adjacent atoms.
- *                                                          -- TeXBook, p. 170
- *
- * In this table
- * - "3" = `\thinmuskip`
- * - "4" = `\medmuskip`
- * - "5" = `\thickmuskip`
- *
- */
-
-const INTER_BOX_SPACING = {
-  ord: { op: 3, bin: 4, rel: 5, inner: 3 },
-  op: { ord: 3, op: 3, rel: 5, inner: 3 },
-  bin: { ord: 4, op: 4, open: 4, inner: 4 },
-  rel: { ord: 5, op: 5, open: 5, inner: 5 },
-  close: { op: 3, bin: 4, rel: 5, inner: 3 },
-  punct: { ord: 3, op: 3, rel: 3, open: 3, punct: 3, inner: 3 },
-  inner: { ord: 3, op: 3, bin: 4, rel: 5, open: 3, punct: 3, inner: 3 },
-};
-
-/**
- * This table is used when the mathstyle is 'tight' (scriptstyle or
- * scriptscriptstyle).
- */
-const INTER_BOX_TIGHT_SPACING = {
-  ord: { op: 3 },
-  op: { ord: 3, op: 3 },
-  close: { op: 3 },
-  inner: { op: 3 },
-};
 
 /**
  * Return a string made up of the concatenated arguments.
@@ -140,23 +89,27 @@ function toString(arg1: number | string, arg2?: string): string {
 export class Box implements BoxInterface {
   type: BoxType;
 
+  parent: Box | undefined;
   children?: Box[];
-  // If true, this atom (and its children) should be considered as part of
-  // a 'new list', in the TeX sense. That happens when a new branch
-  // (superscript, etc...) begins. This is important to correctly adjust
-  // the 'type' of boxes, and calculate their interspacing correctly.
-  break: boolean;
   value: string;
 
   classes: string;
 
-  caret: ParseMode;
+  caret?: ParseMode;
   isSelected: boolean;
 
   height: number; // Distance above the baseline, in em
   depth: number; // Distance below the baseline, in em
+  _width: number;
+  hasExplicitWidth: boolean;
   skew: number;
   italic: number;
+
+  // The scale relative to the parent box (1.0 = no scale)
+  // The dimensions (height, depth, width, skew, italic) are
+  // pre-multiplied by the scale.
+  scale: number;
+
   // The maxFontSize is a dimension in em large enough that the browser will
   // reserve at least that space above the baseline.
   maxFontSize: number;
@@ -171,9 +124,11 @@ export class Box implements BoxInterface {
   svgOverlay?: string;
   svgStyle?: string;
 
-  attributes?: Record<string, string>; // HTML attributes, for example 'data-atom-id'
+  id?: string;
 
-  cssProperties: Partial<Record<BoxCSSProperties, string>>;
+  attributes?: Record<string, string>; // HTML attributes
+
+  cssProperties?: Partial<Record<BoxCSSProperties, string>>;
 
   constructor(
     content: null | number | string | Box | (Box | null)[],
@@ -185,10 +140,16 @@ export class Box implements BoxInterface {
       this.children = content.filter((x) => x !== null) as Box[];
     else if (content && content instanceof Box) this.children = [content];
 
-    this.type = options?.type ?? '';
-    this.isSelected = false;
+    if (this.children) for (const child of this.children) child.parent = this;
+
+    this.type = options?.type ?? 'ignore';
+
+    this.isSelected = options?.isSelected === true;
+    if (options?.caret) this.caret = options.caret;
+
+    this.classes = options?.classes ?? '';
+
     this.isTight = options?.isTight ?? false;
-    this.break = options?.newList ?? false;
 
     // CSS style, as a set of key value pairs.
     // Use `Box.setStyle()` to modify it.
@@ -199,23 +160,26 @@ export class Box implements BoxInterface {
 
     if (options?.attributes) this.attributes = options.attributes;
 
-    // Set initial classes
-    this.classes = options?.classes ?? '';
-
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-    let fontName = options?.fontFamily || 'Main-Regular';
+    let fontName = options?.fontFamily;
     if (options?.style && this.value) {
       fontName =
-        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-        Mode.applyStyle(options.mode ?? 'math', this, options.style) ||
-        'Main-Regular';
+        Mode.getFont(options.mode ?? 'math', this, {
+          variant: 'normal',
+          ...options.style,
+          letterShapeStyle: options.letterShapeStyle,
+        }) ?? undefined;
     }
+    fontName ||= 'Main-Regular';
 
     this.height = 0;
     this.depth = 0;
+    this._width = 0;
+    this.hasExplicitWidth = false;
     this.skew = 0;
     this.italic = 0;
     this.maxFontSize = 0;
+    this.scale = 1.0;
 
     //
     // Calculate the dimensions of this box
@@ -226,6 +190,7 @@ export class Box implements BoxInterface {
       //
       this.height = 0.8;
       this.depth = 0.2;
+      this._width = 1.0;
     } else if (typeof content === 'number') {
       //
       // A codepoint, as used by delimiters
@@ -233,6 +198,7 @@ export class Box implements BoxInterface {
       const metrics = getCharacterMetrics(content, fontName);
       this.height = metrics.height;
       this.depth = metrics.depth;
+      this._width = metrics.width;
       this.skew = metrics.skew;
       this.italic = metrics.italic;
     } else if (this.value) {
@@ -243,17 +209,19 @@ export class Box implements BoxInterface {
       // Get the metrics information
       this.height = -Infinity;
       this.depth = -Infinity;
+      this._width = 0;
       this.skew = -Infinity;
       this.italic = -Infinity;
       // @revisit: when this.value has more than one char it can be for
-      // a string like "cos", but sometimes it can be a multi-code-point grapheme
+      // a string like "cos", but sometimes it can be a multi-code-point grapheme. Maybe need a getStringMetrics()?
       for (let i = 0; i < this.value.length; i++) {
         const metrics = getCharacterMetrics(
           this.value.codePointAt(i),
-          fontName || 'Main-Regular'
+          fontName
         );
         this.height = Math.max(this.height, metrics.height);
         this.depth = Math.max(this.depth, metrics.depth);
+        this._width += metrics.width;
         this.skew = metrics.skew;
         this.italic = metrics.italic;
       }
@@ -269,6 +237,7 @@ export class Box implements BoxInterface {
         const child = this.children[0];
         this.height = child.height;
         this.depth = child.depth;
+        this._width = child.width;
         this.maxFontSize = child.maxFontSize;
         this.skew = child.skew;
         this.italic = child.italic;
@@ -280,14 +249,17 @@ export class Box implements BoxInterface {
 
         let height = -Infinity;
         let depth = -Infinity;
+        let width = 0;
         let maxFontSize = 0;
         for (const child of this.children) {
           if (child.height > height) height = child.height;
           if (child.depth > depth) depth = child.depth;
           maxFontSize = Math.max(maxFontSize, child.maxFontSize ?? 0);
+          width += child.width;
         }
         this.height = height;
         this.depth = depth;
+        this._width = width;
         this.maxFontSize = maxFontSize;
       }
     }
@@ -297,14 +269,15 @@ export class Box implements BoxInterface {
     //
     if (options?.height !== undefined) this.height = options.height;
     if (options?.depth !== undefined) this.depth = options.depth;
+    if (options?.width !== undefined) this.width = options.width;
+
     if (options?.maxFontSize !== undefined)
       this.maxFontSize = options.maxFontSize;
   }
 
   set atomID(id: string | undefined) {
     if (id === undefined || id.length === 0) return;
-    if (!this.attributes) this.attributes = {};
-    this.attributes['data-atom-id'] = id;
+    this.id = id;
   }
 
   selected(isSelected: boolean): void {
@@ -316,7 +289,7 @@ export class Box implements BoxInterface {
 
   /**
    * Set the value of a CSS property associated with this box.
-   * For example, setStyle('border-right', 5.6, 'em');
+   * For example, setStyle('margin-right', 5.6, 'em');
    *
    * @param prop the CSS property to set
    * @param value a series of strings and numbers that will be concatenated.
@@ -375,28 +348,21 @@ export class Box implements BoxInterface {
     }
   }
 
+  get width(): number {
+    return this._width;
+  }
+
   set width(value: number) {
-    if (!Number.isFinite(value)) return;
-    if (value === 0) {
-      if (this.cssProperties) delete this.cssProperties.width;
-    } else {
-      if (!this.cssProperties) this.cssProperties = {};
-      this.cssProperties.width = toString(value, 'em');
-    }
+    this._width = value;
+    this.hasExplicitWidth = true;
   }
 
   /**
+   * Apply the context (color, backgroundColor, size) to the box.
    * If necessary wrap this box with another one that adjust the font-size
    * to account for a change in size between the context and its parent.
-   * Also, apply color and background-color attributes.
    */
-  wrap(
-    context: Context,
-    options?: {
-      classes: string;
-      type: '' | 'open' | 'close' | 'inner';
-    }
-  ): Box {
+  wrap(context: Context): Box {
     const parent = context.parent;
 
     // If we're at the root, nothing to do
@@ -404,59 +370,31 @@ export class Box implements BoxInterface {
 
     if (context.isPhantom) this.setStyle('opacity', 0);
 
-    let newColor = context.computedColor;
-    if (newColor === parent.computedColor) newColor = '';
-
     //
     // Apply color changes to the box
     //
-    this.setStyle('color', newColor);
+    const color = context.color;
+    if (color && color !== parent.color) this.setStyle('color', color);
 
-    const newSize =
-      context.effectiveFontSize === parent.effectiveFontSize
-        ? undefined
-        : context.effectiveFontSize;
+    let backgroundColor = context.backgroundColor;
+    if (this.isSelected) backgroundColor = highlight(backgroundColor);
 
-    let newBackgroundColor = context.computedBackgroundColor;
-    if (this.isSelected) newBackgroundColor = highlight(newBackgroundColor);
-
-    if (newBackgroundColor === parent.computedBackgroundColor)
-      newBackgroundColor = '';
-
-    //
-    // Wrap the box if necessary.
-    //
-    // Note that when the size changes, the font-size should be applied to
-    // the wrapper, not to the nucleus, otherwise the size of the element
-    // (which is used to calculate the selection rectangle)is incorrect
-    //
-    if (
-      !newSize &&
-      !newBackgroundColor &&
-      !(options && (options.classes || options.type))
-    )
-      return this;
-
-    let result: Box;
-    if (newBackgroundColor) {
-      result = makeStruts(this, options);
-      result.selected(this.isSelected);
-      result.setStyle('background-color', newBackgroundColor);
-      result.setStyle('display', 'inline-block');
-    } else result = new Box(this, options);
-
-    //
-    // Adjust the dimensions to account for the size variations
-    //
-    const factor = context.scalingFactor;
-    if (factor !== 1.0) {
-      result.setStyle('font-size', factor * 100, '%');
-      result.height *= factor;
-      result.depth *= factor;
-      result.italic *= factor;
-      result.skew *= factor;
+    if (backgroundColor && backgroundColor !== parent.backgroundColor) {
+      this.setStyle('background-color', backgroundColor);
+      this.setStyle('display', 'inline-block');
     }
-    return result;
+
+    // The scale should only get adjusted once, so it should be 1.0
+    // at this point
+    console.assert(this.scale === 1.0);
+    const scale = context.scalingFactor;
+    this.scale = scale;
+    this.height *= scale;
+    this.depth *= scale;
+    this._width *= scale;
+    this.skew *= scale;
+    this.italic *= scale;
+    return this;
   }
 
   /**
@@ -472,7 +410,44 @@ export class Box implements BoxInterface {
     if (this.children) for (const box of this.children) body += box.toMarkup();
 
     //
-    // 2. Calculate the classes associated with this box
+    // 2. SVG
+    //
+    // If there is some SVG markup associated with this box,
+    // include it now
+    //
+    let svgMarkup = '';
+    if (this.svgBody) svgMarkup = svgBodyToMarkup(this.svgBody);
+    else if (this.svgOverlay) {
+      svgMarkup = '<span style="';
+      svgMarkup += 'display: inline-block;';
+      svgMarkup += `height:${this.height + this.depth}em;`;
+      svgMarkup += `vertical-align:${this.depth}em;`;
+      svgMarkup += '">';
+      svgMarkup += body;
+      svgMarkup += '</span>';
+      svgMarkup += '<svg style="position:absolute;overflow:overlay;';
+      svgMarkup += `height:${this.height + this.depth}em;`;
+      const padding = this.cssProperties?.padding;
+      if (padding) {
+        svgMarkup += `top:${padding};`;
+        svgMarkup += `left:${padding};`;
+        svgMarkup += `width:calc(100% - 2 * ${padding} );`;
+      } else svgMarkup += 'top:0;left:0;width:100%;';
+
+      svgMarkup += 'z-index:2;';
+      svgMarkup += '"';
+      if (this.svgStyle) svgMarkup += ` style="${this.svgStyle}"`;
+
+      svgMarkup += `>${this.svgOverlay}</svg>`;
+    }
+
+    //
+    // 3. Markup for props
+    //
+    let props = '';
+
+    //
+    // 3.1 Classes
     //
     const classes = this.classes.split(' ');
 
@@ -483,8 +458,10 @@ export class Box implements BoxInterface {
         error: 'ML__error',
       }[this.type] ?? ''
     );
+
     if (this.caret === 'latex') classes.push('ML__latex-caret');
 
+    if (this.isSelected) classes.push('ML__selected');
     // Remove duplicate and empty classes
     const classList =
       classes.length === 1
@@ -493,107 +470,86 @@ export class Box implements BoxInterface {
             .filter((x, e, a) => x.length > 0 && a.indexOf(x) === e)
             .join(' ');
 
-    //
-    // 3. Markup for props and SVG
-    //
-    let result = '';
-    if (
-      (body.length > 0 && body !== '\u200B') ||
-      classList.length > 0 ||
-      this.cssId ||
-      this.htmlData ||
-      this.htmlStyle ||
-      this.attributes ||
-      this.cssProperties ||
-      this.svgBody ||
-      this.svgOverlay
-    ) {
-      let props = '';
+    if (classList.length > 0) props += ` class="${classList}"`;
 
-      if (this.cssId) {
-        // A (HTML5) CSS id may not contain a space
-        props += ` id="${this.cssId.replace(/ /g, '-')}" `;
-      }
-      if (this.htmlData) {
-        const entries = this.htmlData.split(',');
-        for (const entry of entries) {
-          const matched = entry.match(/([^=]+)=(.+$)/);
-          if (matched) {
-            const key = matched[1].trim().replace(/ /g, '-');
-            if (key) props += ` data-${key}="${matched[2]}" `;
-          } else {
-            const key = entry.trim().replace(/ /g, '-');
-            if (key) props += ` data-${key} `;
-          }
+    //
+    // 3.2 Id
+    //
+    if (this.id) props += ` data-atom-id=${this.id}`;
+
+    // A (HTML5) CSS id may not contain a space
+    if (this.cssId) props += ` id="${this.cssId.replace(/ /g, '-')}" `;
+
+    //
+    // 3.3 Attributes
+    //
+    if (this.attributes) {
+      props +=
+        ' ' +
+        Object.keys(this.attributes)
+          .map((x) => `${x}="${this.attributes![x]}"`)
+          .join(' ');
+    }
+
+    if (this.htmlData) {
+      const entries = this.htmlData.split(',');
+      for (const entry of entries) {
+        const matched = entry.match(/([^=]+)=(.+$)/);
+        if (matched) {
+          const key = matched[1].trim().replace(/ /g, '-');
+          if (key) props += ` data-${key}="${matched[2]}" `;
+        } else {
+          const key = entry.trim().replace(/ /g, '-');
+          if (key) props += ` data-${key} `;
         }
       }
-      if (this.htmlStyle) {
-        const entries = this.htmlStyle.split(';');
-        let styleString = '';
-        for (const entry of entries) {
-          const matched = entry.match(/([^=]+):(.+$)/);
-          if (matched) {
-            const key = matched[1].trim().replace(/ /g, '-');
-            if (key) styleString += `${key}:${matched[2]};`;
-          }
-        }
-        if (styleString) props += ` style="${styleString}"`;
-      }
-
-      if (this.attributes) {
-        props +=
-          ' ' +
-          Object.keys(this.attributes)
-            .map((x) => `${x}="${this.attributes![x]}"`)
-            .join(' ');
-      }
-
-      if (classList.length > 0) props += ` class="${classList}"`;
-
-      if (this.cssProperties) {
-        const styleString = Object.keys(this.cssProperties)
-          .map((x) => `${x}:${this.cssProperties[x]}`)
-          .join(';');
-
-        if (styleString.length > 0) props += ` style="${styleString}"`;
-      }
-
-      //
-      // If there is some SVG markup associated with this box,
-      // include it now
-      //
-      let svgMarkup = '';
-      if (this.svgBody) svgMarkup = svgBodyToMarkup(this.svgBody);
-      else if (this.svgOverlay) {
-        svgMarkup = '<span style="';
-        svgMarkup += 'display: inline-block;';
-        svgMarkup += `height:${this.height + this.depth}em;`;
-        svgMarkup += `vertical-align:${this.depth}em;`;
-        svgMarkup += '">';
-        svgMarkup += body;
-        svgMarkup += '</span>';
-        svgMarkup += '<svg style="position:absolute;overflow:overlay;';
-        svgMarkup += `height:${this.height + this.depth}em;`;
-        if (this.cssProperties?.padding) {
-          svgMarkup += `top:${this.cssProperties.padding}em;`;
-          svgMarkup += `left:${this.cssProperties.padding}em;`;
-          svgMarkup += `width:calc(100% - 2 * ${this.cssProperties.padding}em );`;
-        } else svgMarkup += 'top:0;left:0;width:100%;';
-
-        svgMarkup += 'z-index:2;';
-        svgMarkup += '"';
-        if (this.svgStyle) svgMarkup += ` style="${this.svgStyle}"`;
-
-        svgMarkup += `>${this.svgOverlay}</svg>`;
-      }
-
-      // Note: We can't omit the tag, even if it has no props,
-      // as some layouts (vlist) depends on the presence of the tag to function
-      result = `<span${props}>${body}${svgMarkup}</span>`;
     }
 
     //
-    // 4. Add markup for the caret
+    // 3.4 Styles
+    //
+    const cssProps: Partial<Record<BoxCSSProperties, string>> =
+      this.cssProperties ?? {};
+    if (this.hasExplicitWidth) {
+      console.assert(cssProps.width === undefined);
+      cssProps.width = `${Math.round(this._width * 100) / 100}em`;
+    }
+    const styles = Object.keys(cssProps).map((x) => `${x}:${cssProps[x]}`);
+
+    if (
+      this.scale !== undefined &&
+      this.scale !== 1.0 &&
+      (body.length > 0 || svgMarkup.length > 0)
+    )
+      styles.push(`font-size: ${Math.round(this.scale * 10000) / 100}%`);
+    // styles.push(`font-size: ${Math.round(this.scale * 10000) / 10000}em`);
+
+    if (this.htmlStyle) {
+      const entries = this.htmlStyle.split(';');
+      let styleString = '';
+      for (const entry of entries) {
+        const matched = entry.match(/([^=]+):(.+$)/);
+        if (matched) {
+          const key = matched[1].trim().replace(/ /g, '-');
+          if (key) styleString += `${key}:${matched[2]};`;
+        }
+      }
+      if (styleString) props += ` style="${styleString}"`;
+    }
+
+    if (styles.length > 0) props += ` style="${styles.join(';')}"`;
+
+    //
+    // 4. Tag markup
+    //
+
+    let result = '';
+    if (props.length > 0 || svgMarkup.length > 0)
+      result = `<span${props}>${body}${svgMarkup}</span>`;
+    else result = body;
+
+    //
+    // 5. Add markup for the caret
     //
     if (this.caret === 'text') result += '<span class="ML__text-caret"></span>';
     else if (this.caret === 'math') result += '<span class="ML__caret"></span>';
@@ -612,14 +568,14 @@ export class Box implements BoxInterface {
    */
   tryCoalesceWith(box: Box): boolean {
     // Don't coalesce if the types are different
-    if (this.type !== box.type) return false;
+    // if (this.type !== box.type) return false;
 
     // Only coalesce some types
-    if (
-      !/ML__text/.test(this.classes) &&
-      !['ord', 'bin', 'rel'].includes(this.type)
-    )
-      return false;
+    // if (
+    //   !/ML__text/.test(this.classes) &&
+    //   !['ord', 'bin', 'rel'].includes(this.type)
+    // )
+    //   return false;
 
     // Don't coalesce if some of the content is SVG
     if (this.svgBody || !this.value) return false;
@@ -630,6 +586,26 @@ export class Box implements BoxInterface {
     const hasChildren = this.children && this.children.length > 0;
     const boxHasChildren = box.children && box.children.length > 0;
     if (hasChildren || boxHasChildren) return false;
+
+    if (box.cssProperties || this.cssProperties) {
+      // If it contains unmergable properties, bail
+      for (const prop of [
+        'border',
+        'border-left',
+        'border-right',
+        'border-right-width',
+        'left',
+        'margin',
+        'margin-left',
+        'margin-right',
+        'padding',
+        'position',
+        'width',
+      ]) {
+        if (box.cssProperties && prop in box.cssProperties) return false;
+        if (this.cssProperties && prop in this.cssProperties) return false;
+      }
+    }
 
     // If they have a different number of styles, can't coalesce
     const thisStyleCount = this.cssProperties
@@ -642,8 +618,10 @@ export class Box implements BoxInterface {
 
     // If the styles are different, can't coalesce
     if (thisStyleCount > 0) {
-      for (const prop of Object.keys(this.cssProperties))
-        if (this.cssProperties[prop] !== box.cssProperties[prop]) return false;
+      for (const prop of Object.keys(this.cssProperties!)) {
+        if (this.cssProperties![prop] !== box.cssProperties![prop])
+          return false;
+      }
     }
 
     // For the purpose of our comparison,
@@ -670,6 +648,7 @@ export class Box implements BoxInterface {
     this.value += box.value;
     this.height = Math.max(this.height, box.height);
     this.depth = Math.max(this.depth, box.depth);
+    this._width = this._width + box._width;
     this.maxFontSize = Math.max(this.maxFontSize, box.maxFontSize);
     // The italic correction for the coalesced boxes is the
     // italic correction of the last box.
@@ -704,134 +683,6 @@ export function coalesce(box: Box): Box {
   return box;
 }
 
-/**
- *  Handle proper spacing of, e.g. "-4" vs "1-4", by adjusting some box type
- */
-function adjustType(root: Box | null): void {
-  forEachBox(root, (prevBox: Box, box: Box) => {
-    // > 5. If the current item is a Bin atom, and if this was the first atom
-    // >   in the list, or if the most recent previous atom was Bin, Op, Rel,
-    // >   Open, or Punct, change the current Bin to Ord and continue with
-    // >   Rule 14.
-    // >   Otherwise continue with Rule 17.
-    //                                                    -- TexBook p. 442
-
-    if (
-      box.type === 'bin' &&
-      (!prevBox || /^(first|none|bin|op|rel|open|punct)$/.test(prevBox.type))
-    )
-      box.type = 'ord';
-
-    // > 6. If the current item is a Rel or Close or Punct atom, and if the most
-    // >   recent previous atom was Bin, change that previous Bin to Ord. Continue
-    // >   with Rule 17.
-    if (
-      prevBox &&
-      prevBox.type === 'bin' &&
-      /^(rel|close|punct|placeholder)$/.test(box.type)
-    )
-      prevBox.type = 'ord';
-  });
-}
-
-//
-// Adjust the atom(/box) types according to the TeX rules
-//
-function applyInterAtomSpacing(root: Box | null, context: Context): void {
-  const thin = context.getRegisterAsEm('thinmuskip');
-  const med = context.getRegisterAsEm('medmuskip');
-  const thick = context.getRegisterAsEm('thickmuskip');
-
-  forEachBox(root, (prevBox, box) => {
-    if (!prevBox?.type) return;
-    // console.log(prevBox?.value, prevBox?.type, box.value, box.type);
-    const prevType = prevBox.type;
-    const table = box.isTight
-      ? INTER_BOX_TIGHT_SPACING[prevType] ?? null
-      : INTER_BOX_SPACING[prevType] ?? null;
-    const hskip = table?.[box.type] ?? 'none';
-    if (hskip !== 'none') {
-      if (hskip === 3) box.left += thin;
-      if (hskip === 4) box.left += med;
-      if (hskip === 5) box.left += thick;
-    }
-  });
-}
-
-/*
- * Iterate over each box, mimicking the TeX atom list walking logic
- * used to demote bin atoms to ord.
- *
- * Our boxes don't map one to one with atoms, since we may include
- * "construction" boxes that should be ignored. This function takes care
- * of that.
- *
- */
-
-function forEachBoxRecursive(
-  prevBox: Box | null,
-  box: Box,
-  f: (prevBox: Box | null, curBox: Box) => void
-): Box | undefined | null {
-  // The TeX algorithms scan each elements, and consider them to be part
-  // of the same list of atoms, until they reach some branch points
-  // (superscript, numerator,etc..). The boxes that indicate the start of a
-  // new list have the `break` property set.
-  if (box.break) prevBox = null;
-
-  // Ignore empty boxes, i.e. {}
-  if (box.children?.length === 1 && box.children[0].type === 'first')
-    return undefined;
-
-  const type = box.type;
-  const skipBox =
-    type === 'none' ||
-    type === 'first' ||
-    type === 'spacing' ||
-    type === undefined ||
-    type.length === 0;
-
-  if (!skipBox) f(prevBox, box);
-
-  if (!box.children) return skipBox ? undefined : box;
-
-  let childPrev: Box | null = prevBox;
-
-  for (const child of box.children) {
-    const nextChild = forEachBoxRecursive(childPrev, child, f);
-    if (nextChild !== undefined) childPrev = nextChild;
-  }
-
-  return childPrev;
-}
-
-function forEachBox(box: Box | null, f: (prevBox: Box, curBox: Box) => void) {
-  if (!box) return;
-  forEachBoxRecursive(null, box, f);
-}
-
-export function adjustInterAtomSpacing(root: Box, context: Context): Box {
-  adjustType(root);
-  applyInterAtomSpacing(root, context);
-  return root;
-}
-
-// function spanToString(span: Span, indent = 0): string {
-//   let result = '\n' + ' '.repeat(indent * 2);
-//   if (span.value !== undefined) {
-//     result += `"${span.svgBody ?? span.value}"`;
-//   }
-//   result += ` ${span.type ?? '????'} ${toString(span.height)} / ${toString(
-//     span.depth
-//   )} / ${span.maxFontSize}`;
-//   if (span.children) {
-//     for (const child of span.children) {
-//       result += spanToString(child, indent + 1);
-//     }
-//   }
-//   return result;
-// }
-
 //----------------------------------------------------------------------------
 // UTILITY FUNCTIONS
 //----------------------------------------------------------------------------
@@ -840,18 +691,20 @@ export function makeStruts(
   content: Box,
   options?: {
     classes?: string;
-    type?: BoxType;
     attributes?: Record<string, string>;
   }
 ): Box {
   if (!content) return new Box(null, options);
 
-  const topStrut = new Box(null, { classes: 'ML__strut' });
+  const topStrut = new Box(null, { classes: 'ML__strut', type: 'ignore' });
   topStrut.setStyle('height', Math.max(0, content.height), 'em');
   const struts = [topStrut];
 
   if (content.depth !== 0) {
-    const bottomStrut = new Box(null, { classes: 'ML__strut--bottom' });
+    const bottomStrut = new Box(null, {
+      classes: 'ML__strut--bottom',
+      type: 'ignore',
+    });
     bottomStrut.setStyle('height', content.height + content.depth, 'em');
     bottomStrut.setStyle('vertical-align', -content.depth, 'em');
     struts.push(bottomStrut);
@@ -859,7 +712,7 @@ export function makeStruts(
 
   struts.push(content);
 
-  return new Box(struts, options);
+  return new Box(struts, { ...options, type: 'lift' });
 }
 
 /**

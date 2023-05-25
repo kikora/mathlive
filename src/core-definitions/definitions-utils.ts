@@ -1,13 +1,18 @@
 import { supportRegexPropertyEscape } from '../common/capabilities';
 
-import type { Atom, AtomType, BBoxParameter } from '../core/atom-class';
+import {
+  Atom,
+  AtomType,
+  BBoxParameter,
+  CreateAtomOptions,
+  ToLatexOptions,
+} from '../core/atom-class';
 import type { ColumnFormat } from '../core-atoms/array';
 
 import { MathfieldPrivate } from '../editor-mathfield/mathfield-private';
 import type {
   ArgumentType,
   Dimension,
-  Glue,
   MacroDefinition,
   MacroDictionary,
   MacroPackageDefinition,
@@ -16,9 +21,12 @@ import type {
   Variant,
   MathstyleName,
   Environment,
+  LatexValue,
 } from '../public/core-types';
 import { unicodeToMathVariant } from './unicode';
-import { GlobalContext, PrivateStyle } from '../core/types';
+import type { ContextInterface, PrivateStyle } from '../core/types';
+import type { Context } from '../core/context';
+import { Box } from '../core/box';
 
 export type FunctionArgumentDefinition = {
   isOptional: boolean;
@@ -27,12 +35,10 @@ export type FunctionArgumentDefinition = {
 
 export type Argument =
   | string
-  | number
-  | { group: Atom[] }
-  | Dimension
-  | Glue
+  | LatexValue
   | BBoxParameter
   | ColumnFormat[]
+  | { group: Atom[] }
   | Atom[];
 
 export type ParseResult =
@@ -40,13 +46,11 @@ export type ParseResult =
   | PrivateStyle
   | ParseMode
   | MathstyleName
-  | {
-      error: string;
-    };
+  | { error: string };
 
 export type TokenDefinition = FunctionDefinition | SymbolDefinition;
 
-export type FunctionDefinition = {
+export type FunctionDefinition<T extends any[] = any[]> = {
   definitionType: 'function';
   command?: string;
   params: FunctionArgumentDefinition[];
@@ -60,17 +64,14 @@ export type FunctionDefinition = {
   ifMode?: ParseMode;
   /**  */
   applyMode?: ParseMode;
-  createAtom?: (
-    command: string,
-    context: GlobalContext,
-    style: PrivateStyle,
-    args: (null | Argument)[]
-  ) => Atom;
+  createAtom?: (options: CreateAtomOptions<T>) => Atom;
   applyStyle?: (
     command: string,
-    context: GlobalContext,
-    args: (null | Argument)[]
+    args: (null | Argument)[],
+    context: ContextInterface
   ) => PrivateStyle;
+  serialize?: (atom: Atom, options: ToLatexOptions) => string;
+  render?: (Atom: Atom, context: Context) => Box | null;
 
   frequency?: number;
   category?: string;
@@ -95,12 +96,15 @@ export type SymbolDefinition = {
 
   isFunction?: boolean;
 
+  serialize?: (atom: Atom, options: ToLatexOptions) => string;
+  render?: (Atom: Atom, context: Context) => Box | null;
+
   frequency?: number;
   category?: string;
   template?: string;
 };
 
-export function argAtoms(arg: Argument | null): Atom[] {
+export function argAtoms(arg: Argument | null | undefined): Atom[] {
   if (!arg) return [];
   if (Array.isArray(arg)) return arg as Atom[];
   if (typeof arg === 'object' && 'group' in arg) return arg.group;
@@ -238,7 +242,6 @@ export const LATEX_COMMANDS: Record<string, FunctionDefinition> = {};
 export const ENVIRONMENTS: Record<string, EnvironmentDefinition> = {};
 
 type EnvironmentConstructor = (
-  context: GlobalContext,
   name: Environment,
   array: Atom[][][],
   rowGaps: Dimension[],
@@ -431,14 +434,22 @@ const DEFAULT_MACROS: MacroDictionary = {
   'differentialD': '\\mathrm{d}', // NOTE: set in main (upright) as per ISO 80000-2:2009.
   'capitalDifferentialD': '\\mathrm{D}', // NOTE: set in main (upright) as per ISO 80000-2:2009.
 
+  'mathstrut': { def: '\\vphantom{(}', primitive: true },
+
+  // mhchem
+
+  'tripledash': {
+    def: '\\vphantom{-}\\raise{4mu}{\\mkern1.5mu\\rule{2mu}{1.5mu}\\mkern{2.25mu}\\rule{2mu}{1.5mu}\\mkern{2.25mu}\\rule{2mu}{1.5mu}\\mkern{2mu}}',
+    expand: true,
+  },
   'braket.sty': { package: BRAKET_MACROS } as MacroPackageDefinition,
   'amsmath.sty': {
     package: AMSMATH_MACROS,
-    expand: false,
+    primitive: true,
   } as MacroPackageDefinition,
   'texvc.sty': {
     package: TEXVC_MACROS,
-    expand: false,
+    primitive: false,
   } as MacroPackageDefinition,
 };
 
@@ -447,10 +458,12 @@ const DEFAULT_MACROS: MacroDictionary = {
 
 export const TEXT_SYMBOLS: Record<string, number> = {
   ' ': 0x0020,
+  // want that in Text mode.
   '\\#': 0x0023,
   '\\&': 0x0026,
   '\\$': 0x0024,
   '\\%': 0x0025,
+  '-': 0x002d, // In Math mode, '-' is substituted to U+2212, but we don't
   '\\_': 0x005f,
   '\\euro': 0x20ac,
   '\\maltese': 0x2720,
@@ -498,15 +511,19 @@ export const TEXT_SYMBOLS: Record<string, number> = {
 
 export const COMMAND_MODE_CHARACTERS = /[\w!@*()-=+{}[\]\\';:?/.,~<>`|$%#&^" ]/;
 
-export const LETTER = supportRegexPropertyEscape()
-  ? /* eslint-disable-next-line prefer-regex-literals */
-    new RegExp('\\p{Letter}', 'u')
-  : /[a-zA-ZаАбБвВгГдДеЕёЁжЖзЗиИйЙкКлЛмМнНоОпПрРсСтТуУфФхХцЦчЧшШщЩъЪыЫьЬэЭюЮяĄąĆćĘęŁłŃńÓóŚśŹźŻżàâäôéèëêïîçùûüÿæœÀÂÄÔÉÈËÊÏÎŸÇÙÛÜÆŒößÖẞìíòúÌÍÒÚáñÁÑ]/;
+export let LETTER;
+export let LETTER_AND_DIGITS;
 
-export const LETTER_AND_DIGITS = supportRegexPropertyEscape()
-  ? /* eslint-disable-next-line prefer-regex-literals */
-    new RegExp('[0-9\\p{Letter}]', 'u')
-  : /[\da-zA-ZаАбБвВгГдДеЕёЁжЖзЗиИйЙкКлЛмМнНоОпПрРсСтТуУфФхХцЦчЧшШщЩъЪыЫьЬэЭюЮяĄąĆćĘęŁłŃńÓóŚśŹźŻżàâäôéèëêïîçùûüÿæœÀÂÄÔÉÈËÊÏÎŸÇÙÛÜÆŒößÖẞìíòúÌÍÒÚáñÁÑ]/;
+if (supportRegexPropertyEscape()) {
+  LETTER = new RegExp('\\p{Letter}', 'u');
+  LETTER_AND_DIGITS = new RegExp('[0-9\\p{Letter}]', 'u');
+} else {
+  LETTER =
+    /[a-zA-ZаАбБвВгГдДеЕёЁжЖзЗиИйЙкКлЛмМнНоОпПрРсСтТуУфФхХцЦчЧшШщЩъЪыЫьЬэЭюЮяĄąĆćĘęŁłŃńÓóŚśŹźŻżàâäôéèëêïîçùûüÿæœÀÂÄÔÉÈËÊÏÎŸÇÙÛÜÆŒößÖẞìíòúÌÍÒÚáñÁÑ]/;
+
+  LETTER_AND_DIGITS =
+    /[\da-zA-ZаАбБвВгГдДеЕёЁжЖзЗиИйЙкКлЛмМнНоОпПрРсСтТуУфФхХцЦчЧшШщЩъЪыЫьЬэЭюЮяĄąĆćĘęŁłŃńÓóŚśŹźŻżàâäôéèëêïîçùûüÿæœÀÂÄÔÉÈËÊÏÎŸÇÙÛÜÆŒößÖẞìíòúÌÍÒÚáñÁÑ]/;
+}
 
 /**
  * @param symbol    The LaTeX command for this symbol, for
@@ -756,18 +773,15 @@ export function defineFunction(
     applyMode?: ParseMode;
     infix?: boolean;
     isFunction?: boolean;
-    createAtom?: (
-      name: string,
-      context: GlobalContext,
-      style: PrivateStyle,
-      args: (null | Argument)[]
-    ) => Atom;
+    createAtom?: (options: CreateAtomOptions) => Atom;
     applyStyle?: (
       name: string,
-      context: GlobalContext,
-      args: (null | Argument)[]
+      args: (null | Argument)[],
+      context: Context
     ) => PrivateStyle;
     command?: string;
+    serialize?: (atom: Atom, options: ToLatexOptions) => string;
+    render?: (atom: Atom, context: Context) => Box | null;
   }
 ): void {
   if (!options) options = {};
@@ -785,6 +799,8 @@ export function defineFunction(
     infix: options.infix ?? false,
     createAtom: options.createAtom,
     applyStyle: options.applyStyle,
+    serialize: options.serialize,
+    render: options.render,
   };
   if (typeof names === 'string') LATEX_COMMANDS['\\' + names] = data;
   else for (const name of names) LATEX_COMMANDS['\\' + name] = data;
@@ -848,7 +864,7 @@ export function normalizeMacroDictionary(
         result[packageMacro] = normalizeMacroDefinition(
           macroDef.package[packageMacro],
           {
-            expand: macroDef.expand,
+            expand: !macroDef.primitive,
             captureSelection: macroDef.captureSelection,
           }
         );
@@ -858,7 +874,7 @@ export function normalizeMacroDictionary(
   return result;
 }
 
-export function defaultGetDefinition(
+export function getDefinition(
   token: string,
   parseMode: ParseMode = 'math'
 ): TokenDefinition | null {
@@ -889,7 +905,7 @@ export function defaultGetDefinition(
       //Check if this is a Unicode character that has a definition
       const command = charToLatex('math', token.codePointAt(0));
       if (command.startsWith('\\'))
-        return { ...defaultGetDefinition(command, 'math')!, command };
+        return { ...getDefinition(command, 'math')!, command };
       return null;
     }
   } else if (TEXT_SYMBOLS[token]) {

@@ -1,15 +1,11 @@
 import { Atom } from '../core/atom';
-import { coalesce, adjustInterAtomSpacing, Box, makeStruts } from '../core/box';
-import { DEFAULT_FONT_SIZE } from '../core/font-metrics';
+import { coalesce, Box, makeStruts } from '../core/box';
 import { l10n as l10nOptions, localize as l10n } from '../core/l10n';
 import { parseLatex } from '../core/parser';
 import { SelectorPrivate } from '../editor/types';
 import { getActiveKeyboardLayout } from '../editor/keyboard-layout';
 
-import VIRTUAL_KEYBOARD_STYLESHEET from '../../css/virtual-keyboard.less' assert { type: 'css' };
-import CORE_STYLESHEET from '../../css/core.less' assert { type: 'css' };
-import { Stylesheet, inject as injectStylesheet } from '../common/stylesheet';
-import { hashCode } from '../common/hash-code';
+import { releaseStylesheet, injectStylesheet } from '../common/stylesheet';
 import { loadFonts } from '../core/fonts';
 import { Context } from '../core/context';
 
@@ -17,7 +13,6 @@ import { LAYOUTS } from './data';
 import { VirtualKeyboard } from './virtual-keyboard';
 import { MathfieldProxy } from '../public/virtual-keyboard';
 import { hasVariants, showVariantsPanel } from './variants';
-import { defaultGlobalContext } from '../core/context-utils';
 import {
   NormalizedVirtualKeyboardLayer,
   NormalizedVirtualKeyboardLayout,
@@ -26,6 +21,7 @@ import {
   VirtualKeyboardLayout,
   VirtualKeyboardOptions,
 } from '../public/virtual-keyboard';
+import { applyInterBoxSpacing } from '../core/inter-box-spacing';
 
 function jsonToCssProps(json) {
   if (typeof json === 'string') return json;
@@ -42,25 +38,25 @@ function jsonToCss(json): string {
     .join('');
 }
 
-export function latexToMarkup(latex: string): string {
+function latexToMarkup(latex: string): string {
   if (!latex) return '';
 
-  const globalContext = defaultGlobalContext();
+  const context = new Context();
 
-  const root = new Atom('root', globalContext);
-  const args = (arg) =>
-    arg === '@'
-      ? '{\\class{ML__box-placeholder}{\\blacksquare}}'
-      : '\\placeholder{}';
-  root.body = parseLatex(latex, globalContext, { parseMode: 'math', args });
+  const root = new Atom({
+    mode: 'math',
+    type: 'root',
+    body: parseLatex(latex, {
+      context,
+      args: (arg) =>
+        arg === '@'
+          ? '{\\class{ML__box-placeholder}{\\blacksquare}}'
+          : '\\placeholder{}',
+    }),
+  });
 
-  const context = new Context(
-    { registers: globalContext.registers },
-    { fontSize: DEFAULT_FONT_SIZE },
-    'displaystyle'
-  );
   const box = coalesce(
-    adjustInterAtomSpacing(
+    applyInterBoxSpacing(
       new Box(root.render(context), { classes: 'ML__base' }),
       context
     )
@@ -238,14 +234,12 @@ export function normalizeLayout(
   for (const layer of result.layers) {
     if (layer.rows) {
       for (const keycap of layer.rows.flat()) {
-        const label = keycap.label!;
+        if (isShiftKey(keycap)) hasShift = true;
+        const command = keycap.command;
         if (
-          typeof keycap !== 'string' &&
-          keycap.class &&
-          /(^|\s)shift($|\s)/.test(keycap.class)
+          typeof command === 'string' &&
+          ['undo', 'redo', 'cut', 'copy', 'paste'].includes(command)
         )
-          hasShift = true;
-        if (['[undo]', '[redo]', '[cut]', '[copy]', '[paste]'].includes(label))
           hasEdit = true;
       }
     }
@@ -363,6 +357,9 @@ export function makeSyntheticKeycaps(elementList: NodeList): void {
 }
 
 function makeSyntheticKeycap(element: HTMLElement): void {
+  const keyboard = VirtualKeyboard.singleton;
+  if (!keyboard) return;
+
   const keycap: Partial<VirtualKeyboardKeycap> = {};
 
   // Generate synthetic keycap from DOM element
@@ -397,7 +394,7 @@ function makeSyntheticKeycap(element: HTMLElement): void {
       } catch (e) {}
     }
 
-    element.id = VirtualKeyboard.singleton.registerKeycap(keycap);
+    element.id = keyboard.registerKeycap(keycap);
   }
 
   // Display
@@ -407,39 +404,15 @@ function makeSyntheticKeycap(element: HTMLElement): void {
   }
 }
 
-let gCoreStylesheet: Stylesheet | null;
-let gVirtualKeyboardStylesheet: Stylesheet | null;
-
-let gVirtualKeyboardStylesheetHash: string;
-
 function injectStylesheets(): void {
-  if (!gVirtualKeyboardStylesheet) {
-    if (!gVirtualKeyboardStylesheetHash) {
-      gVirtualKeyboardStylesheetHash = hashCode(
-        VIRTUAL_KEYBOARD_STYLESHEET
-      ).toString(36);
-    }
-    gVirtualKeyboardStylesheet = injectStylesheet(
-      null,
-      VIRTUAL_KEYBOARD_STYLESHEET,
-      gVirtualKeyboardStylesheetHash
-    );
-  }
-  if (!gCoreStylesheet) {
-    gCoreStylesheet = injectStylesheet(
-      null,
-      CORE_STYLESHEET,
-      hashCode(CORE_STYLESHEET).toString(36)
-    );
-    void loadFonts();
-  }
+  injectStylesheet('virtual-keyboard');
+  injectStylesheet('core');
+  void loadFonts();
 }
 
 export function releaseStylesheets(): void {
-  gCoreStylesheet?.release();
-  gCoreStylesheet = null;
-  gVirtualKeyboardStylesheet?.release();
-  gVirtualKeyboardStylesheet = null;
+  releaseStylesheet('core');
+  releaseStylesheet('virtual-keyboard');
 }
 
 const SVG_ICONS = `<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
@@ -502,8 +475,7 @@ const SVG_ICONS = `<svg xmlns="http://www.w3.org/2000/svg" style="display: none;
 // </symbol>
 
 /**
- * Construct a virtual keyboard element based on the config options in the
- * mathfield and an optional theme.
+ * Construct a virtual keyboard element.
  */
 export function makeKeyboardElement(keyboard: VirtualKeyboard): HTMLDivElement {
   keyboard.resetKeycapRegistry();
@@ -579,13 +551,14 @@ function makeLayout(
   if (!('layers' in layout)) return '';
   for (const layer of layout.layers) {
     markup.push(`<div tabindex="-1" class="MLK__layer" id="${layer.id}">`);
-    markup.push(`<div class='MLK__toolbar' role='toolbar'>`);
-    markup.push(makeLayoutsToolbar(keyboard, index));
-    // If there are no keycap with editing commands, add an edit toolbar
-    if (layout.displayEditToolbar)
-      markup.push(`<div class="ML__edit-toolbar right"></div>`);
-    markup.push(`</div>`);
-
+    if (keyboard.normalizedLayouts.length > 1 || layout.displayEditToolbar) {
+      markup.push(`<div class='MLK__toolbar' role='toolbar'>`);
+      markup.push(makeLayoutsToolbar(keyboard, index));
+      // If there are no keycap with editing commands, add an edit toolbar
+      if (layout.displayEditToolbar)
+        markup.push(`<div class="ML__edit-toolbar right"></div>`);
+      markup.push(`</div>`);
+    }
     // A layer can contain 'shortcuts' (i.e. <row> tags) that need to
     // be expanded
     markup.push(makeLayer(keyboard, layer));
@@ -654,7 +627,7 @@ export function renderKeycap(
   let markup = '';
   let cls = keycap.class ?? '';
 
-  if (options.shifted && /(^|\s)shift($|\s)/.test(cls)) cls += ' is-active';
+  if (options.shifted && isShiftKey(keycap)) cls += ' is-active';
 
   if (options.shifted && 'shift' in keycap) {
     //
@@ -834,18 +807,34 @@ const KEYCAP_SHORTCUTS: Record<string, Partial<VirtualKeyboardKeycap>> = {
     class: 'ghost  if-can-redo',
     command: 'redo',
     label: '<svg class=svg-glyph><use xlink:href=#svg-redo /></svg>',
+    tooltip: l10n('tooltip.redo'),
   },
 
   '[(]': {
-    variants: ['\\lbrack', '\\langle', '\\lfloor', '\\lceil', '\\lbrace'],
-    latex: '(',
+    variants: [
+      // We insert the fences as "keys" so they can be handled by smartFence.
+      // They will be sent via `onKeystroke` instead of inserted directly in
+      // the model
+      { latex: '\\lbrack', key: '[' },
+      '\\langle',
+      '\\lfloor',
+      '\\lceil',
+      { latex: '\\lbrace', key: '{' },
+    ],
+    key: '(',
     label: '(',
-    shift: { label: '[', latex: '\\lbrack' },
+    shift: { label: '[', key: '[' },
     class: 'hide-shift',
   },
   '[)]': {
-    variants: ['\\rbrack', '\\rangle', '\\rfloor', '\\rceil', '\\rbrace'],
-    latex: ')',
+    variants: [
+      { latex: '\\rbrack', key: ']' },
+      '\\rangle',
+      '\\rfloor',
+      '\\rceil',
+      { latex: '\\rbrace', key: ']' },
+    ],
+    key: ')',
     label: ')',
     shift: { label: ']', latex: '\\rbrack' },
     class: 'hide-shift',
@@ -954,12 +943,22 @@ export function normalizeKeycap(
     keycap = { label: keycap };
   }
 
+  let shortcut: Partial<VirtualKeyboardKeycap> | undefined = undefined;
   if ('label' in keycap && keycap.label && KEYCAP_SHORTCUTS[keycap.label]) {
-    let shortcut = {
+    shortcut = {
       ...KEYCAP_SHORTCUTS[keycap.label],
       ...keycap,
       label: KEYCAP_SHORTCUTS[keycap.label].label,
     };
+  }
+  if ('key' in keycap && keycap.key && KEYCAP_SHORTCUTS[keycap.key]) {
+    shortcut = {
+      ...KEYCAP_SHORTCUTS[keycap.key],
+      ...keycap,
+      key: KEYCAP_SHORTCUTS[keycap.key].key,
+    };
+  }
+  if (shortcut) {
     if (shortcut.command === 'insertDecimalSeparator')
       shortcut.label = window.MathfieldElement.decimalSeparator ?? '.';
 
@@ -1004,6 +1003,7 @@ function handlePointerDown(ev: PointerEvent) {
   if (ev.button !== 0) return;
 
   const keyboard = VirtualKeyboard.singleton;
+  if (!keyboard) return;
 
   //
   // Is this event for a layer switch
@@ -1061,9 +1061,10 @@ function handlePointerDown(ev: PointerEvent) {
     signal: controller.signal,
   });
 
-  if (keycap.class && /(^|\s)shift($|\s)/.test(keycap.class)) {
+  // Is it the Shift key?
+  if (isShiftKey(keycap)) {
     target.classList.add('is-active');
-    keyboard.isShifted = true;
+    keyboard.incrementShiftPress();
   }
 
   if (keycap.variants) {
@@ -1093,6 +1094,7 @@ function handleVirtualKeyboardEvent(controller) {
     if (!target?.id) return;
 
     const keyboard = VirtualKeyboard.singleton;
+    if (!keyboard) return;
     const keycap = keyboard.getKeycap(target.id);
 
     if (!keycap) return;
@@ -1104,8 +1106,8 @@ function handleVirtualKeyboardEvent(controller) {
 
     if (ev.type === 'pointercancel') {
       target.classList.remove('is-pressed');
-      if (keycap.class && /(^|\s)shift($|\s)/.test(keycap.class)) {
-        keyboard.isShifted = false;
+      if (isShiftKey(keycap)) {
+        keyboard.decrementShiftPress();
         // Because of capslock, we may not have changed status
         target.classList.toggle('is-active', keyboard.isShifted);
       }
@@ -1115,8 +1117,8 @@ function handleVirtualKeyboardEvent(controller) {
 
     if (ev.type === 'pointerleave' && ev.target === target) {
       target.classList.remove('is-pressed');
-      if (keycap.class && /(^|\s)shift($|\s)/.test(keycap.class)) {
-        keyboard.isShifted = false;
+      if (isShiftKey(keycap)) {
+        keyboard.decrementShiftPress();
         // Because of capslock, we may not have changed status
         target.classList.toggle('is-active', keyboard.isShifted);
       }
@@ -1125,21 +1127,15 @@ function handleVirtualKeyboardEvent(controller) {
 
     if (ev.type === 'pointerup') {
       if (pressAndHoldTimer) clearTimeout(pressAndHoldTimer);
-      if (keycap.class && /(^|\s)shift($|\s)/.test(keycap.class)) {
-        keyboard.isShifted = false;
+      if (isShiftKey(keycap)) {
         // Because of capslock, we may not have changed status
         target.classList.toggle('is-active', keyboard.isShifted);
       } else if (target.classList.contains('is-pressed')) {
         target.classList.remove('is-pressed');
-        target.classList.add('is-active');
 
-        // Since we want the active state to be visible for a while,
-        // use a timer to remove it after a short delay
-        setTimeout(() => target?.classList.remove('is-active'), 150);
-
-        if (VirtualKeyboard.singleton.isShifted && keycap.shift) {
+        if (keyboard.isShifted && keycap.shift) {
           if (typeof keycap.shift === 'string') {
-            VirtualKeyboard.singleton.executeCommand([
+            keyboard.executeCommand([
               'insert',
               keycap.shift,
               {
@@ -1153,6 +1149,8 @@ function handleVirtualKeyboardEvent(controller) {
             ]);
           } else executeKeycapCommand(keycap.shift);
         } else executeKeycapCommand(keycap);
+
+        if (keyboard.shiftPressCount === 1) keyboard.resetShiftPress();
       }
       controller.abort();
       ev.preventDefault();
@@ -1180,6 +1178,14 @@ export function executeKeycapCommand(
       },
     ];
   }
+  if (!command && keycap.key) {
+    command = [
+      'typedText',
+      keycap.key,
+      { focus: true, feedback: true, simulateKeystroke: true },
+    ];
+  }
+
   if (!command && keycap.latex) {
     command = [
       'insert',
@@ -1197,11 +1203,11 @@ export function executeKeycapCommand(
   if (!command) {
     command = [
       'typedText',
-      keycap.key || keycap.label,
+      keycap.label,
       { focus: true, feedback: true, simulateKeystroke: true },
     ];
   }
-  VirtualKeyboard.singleton.executeCommand(command);
+  VirtualKeyboard.singleton?.executeCommand(command);
 }
 
 function isKeycapElement(el: Element): el is HTMLElement {
@@ -1223,4 +1229,8 @@ export function parentKeycap(el: EventTarget | null): HTMLElement | undefined {
   while (node && !isKeycapElement(node)) node = node.parentElement;
 
   return (node as HTMLElement) ?? undefined;
+}
+
+function isShiftKey(k: Partial<VirtualKeyboardKeycap>): boolean {
+  return !!k.class && /(^|\s)shift($|\s)/.test(k.class);
 }

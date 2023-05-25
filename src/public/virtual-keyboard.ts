@@ -155,6 +155,13 @@ export interface NormalizedVirtualKeyboardLayer {
 
 export type EditToolbarOptions = 'none' | 'default';
 
+export type VirtualKeyboardName =
+  | 'default'
+  | 'numeric'
+  | 'symbols'
+  | 'alphabetic'
+  | 'greek';
+
 export interface VirtualKeyboardOptions {
   /**
    * A layout is made up of one or more layers (think of the main layer
@@ -170,7 +177,14 @@ export interface VirtualKeyboardOptions {
    *
    *
    */
-  set layouts(value: 'default' | (string | VirtualKeyboardLayout)[]);
+  get layouts(): Readonly<(VirtualKeyboardName | VirtualKeyboardLayout)[]>;
+  set layouts(
+    value:
+      | VirtualKeyboardName
+      | VirtualKeyboardLayout
+      | (VirtualKeyboardName | VirtualKeyboardLayout)[]
+      | Readonly<(VirtualKeyboardName | VirtualKeyboardLayout)[]>
+  );
 
   /**
    * Configuration of the action toolbar, displayed on the right-hand side.
@@ -224,8 +238,6 @@ export interface MathfieldProxy {
   readonly canRedo: boolean;
   readonly mode: ParseMode;
   readonly style: Style;
-  readonly array?: unknown;
-  readonly boundingRect?: DOMRect;
 }
 
 /**
@@ -237,7 +249,7 @@ export interface VirtualKeyboardInterface extends VirtualKeyboardOptions {
   show(options?: { animate: boolean }): void;
   hide(options?: { animate: boolean }): void;
   visible: boolean;
-
+  readonly isShifted: boolean;
   readonly boundingRect: DOMRect;
 
   executeCommand(command: string | [string, ...any[]]): boolean;
@@ -246,7 +258,6 @@ export interface VirtualKeyboardInterface extends VirtualKeyboardOptions {
    * may need to be updated accordingly
    */
   updateToolbar(mf: MathfieldProxy): void;
-  updateEnvironmemtPopover(mf: MathfieldProxy): void;
   update(mf: MathfieldProxy): void;
   connect(): void;
   disconnect(): void;
@@ -303,12 +314,13 @@ export type VirtualKeyboardMessage =
       boundingRect: DOMRect;
       alphabeticLayout?: AlphabeticKeyboardLayout;
       layers: Record<string, string | Partial<VirtualKeyboardLayer>>;
-      layouts: (string | VirtualKeyboardLayout)[];
+      layouts: Readonly<(string | VirtualKeyboardLayout)[]>;
       editToolbar?: EditToolbarOptions;
       actionKeycap: string | Partial<VirtualKeyboardKeycap>;
       shiftKeycap: string | Partial<VirtualKeyboardKeycap>;
       backspaceKeycap: string | Partial<VirtualKeyboardKeycap>;
       tabKeycap: string | Partial<VirtualKeyboardKeycap>;
+      isShifted: boolean;
     }
   | {
       // From proxy to VK
@@ -316,7 +328,7 @@ export type VirtualKeyboardMessage =
       action: 'update-setting';
       alphabeticLayout?: AlphabeticKeyboardLayout;
       layers: Record<string, string | Partial<VirtualKeyboardLayer>>;
-      layouts: (string | VirtualKeyboardLayout)[];
+      layouts: Readonly<(VirtualKeyboardName | VirtualKeyboardLayout)[]>;
       editToolbar?: EditToolbarOptions;
       actionKeycap: string | Partial<VirtualKeyboardKeycap>;
       shiftKeycap: string | Partial<VirtualKeyboardKeycap>;

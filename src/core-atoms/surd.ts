@@ -1,7 +1,11 @@
-import type { ParseMode, Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
+import type { ParseMode } from '../public/core-types';
 
-import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
+import {
+  Atom,
+  AtomJson,
+  CreateAtomOptions,
+  ToLatexOptions,
+} from '../core/atom-class';
 import { X_HEIGHT } from '../core/font-metrics';
 import { Box } from '../core/box';
 import { VBox } from '../core/v-box';
@@ -9,40 +13,43 @@ import { Context } from '../core/context';
 
 import { makeCustomSizedDelim } from '../core/delimiters';
 import { latexCommand } from '../core/tokenizer';
+import { getDefinition } from '../core-definitions/definitions-utils';
 
 export class SurdAtom extends Atom {
   constructor(
-    command: string,
-    context: GlobalContext,
-    options: {
+    options: CreateAtomOptions & {
       mode?: ParseMode;
       body: Atom[];
       index: undefined | Atom[];
-      style: Style;
     }
   ) {
-    super('surd', context, {
-      command,
+    super({
+      ...options,
+      type: 'surd',
       mode: options.mode ?? 'math',
       style: options.style,
       displayContainsHighlight: true,
+      body: options.body,
     });
-    this.body = options.body;
     this.above = options.index;
   }
 
-  static fromJson(json: AtomJson, context: GlobalContext): SurdAtom {
-    return new SurdAtom(json.command, context, {
+  static fromJson(json: AtomJson): SurdAtom {
+    return new SurdAtom({
       ...(json as any),
       index: json.above,
     });
   }
 
-  toJson(): AtomJson {
-    return super.toJson();
-  }
+  _serialize(options: ToLatexOptions): string {
+    if (
+      !(options.expandMacro || options.skipStyles) &&
+      typeof this.verbatimLatex === 'string'
+    )
+      return this.verbatimLatex;
+    const def = getDefinition(this.command, this.mode);
+    if (def?.serialize) return def.serialize(this, options);
 
-  serialize(options: ToLatexOptions): string {
     const command = this.command;
     const body = this.bodyToLatex(options);
     if (this.above && !this.hasEmptyBranch('above'))
@@ -53,7 +60,7 @@ export class SurdAtom extends Atom {
     return latexCommand(command, body);
   }
 
-  render(parentContext: Context): Box | null {
+  render(context: Context): Box | null {
     // See the TeXbook pg. 443, Rule 11.
     // http://www.ctex.org/documents/shredder/src/texbook.pdf
 
@@ -62,14 +69,21 @@ export class SurdAtom extends Atom {
     //
     // > 11. If the current item is a Rad atom (from \radical, e.g., \sqrt),
     // > set box x to the nucleus in style C′
-    // TeXBook p.443
+    // -- TeXBook p.443
 
-    const innerContext = new Context(parentContext, this.style, 'cramp');
-    const innerBox: Box =
-      Atom.createBox(innerContext, this.body, {
-        style: this.style,
-        newList: true,
-      }) ?? new Box(null);
+    // > Math accents, and the operations \sqrt and \overline, change
+    // > uncramped styles to their cramped counterparts; for example, D
+    // > changes to D′, but D′ stays as it was.
+    // -- TeXBook p. 152
+    const innerContext = new Context(
+      { parent: context, mathstyle: 'cramp' },
+      this.style
+    );
+
+    // In TeX, the type is 'rac'
+    const innerBox =
+      Atom.createBox(innerContext, this.body, { type: 'inner' }) ??
+      new Box(null);
 
     //
     // 2. Render the radical line
@@ -79,7 +93,7 @@ export class SurdAtom extends Atom {
     const ruleWidth = innerContext.metrics.defaultRuleThickness / factor;
 
     // > let φ=σ5 if C>T (TeXBook p. 443)
-    const phi = parentContext.isDisplayStyle ? X_HEIGHT : ruleWidth;
+    const phi = context.isDisplayStyle ? X_HEIGHT : ruleWidth;
 
     const line = new Box(null, {
       classes: 'ML__sqrt-line',
@@ -100,21 +114,22 @@ export class SurdAtom extends Atom {
     );
 
     const minDelimiterHeight = innerTotalHeight + lineClearance + ruleWidth;
-    const delimContext = new Context(parentContext, this.style);
-    const selectClasses = this.isSelected ? ' ML__selected' : '';
+    const delimContext = new Context({ parent: context }, this.style);
+
     const delimBox = this.bind(
       delimContext,
       new Box(
         makeCustomSizedDelim(
-          '',
+          'inner', // @todo not sure if that's the right type
           '\\surd',
           minDelimiterHeight,
           false,
           delimContext,
-          { classes: selectClasses }
+          { isSelected: this.isSelected }
         ),
         {
-          classes: 'ML__sqrt-sign' + selectClasses,
+          isSelected: this.isSelected,
+          classes: 'ML__sqrt-sign',
           style: this.style,
         }
       )
@@ -138,7 +153,7 @@ export class SurdAtom extends Atom {
     //
 
     const bodyBox = this.bind(
-      parentContext,
+      context,
       new VBox({
         firstBaseline: [
           { box: new Box(innerBox) }, // Need to wrap the inner for proper selection bound calculation
@@ -146,11 +161,11 @@ export class SurdAtom extends Atom {
           { box: line },
           ruleWidth,
         ],
-      }).wrap(parentContext)
+      })
     );
 
     //
-    //  5. Assemble the body and the delimiter
+    // 5. Assemble the body and the delimiter
     //
 
     //
@@ -161,9 +176,9 @@ export class SurdAtom extends Atom {
     // > \def\root#1\of{\setbox\rootbox=
     // > \hbox{$\m@th \scriptscriptstyle{#1}$}\mathpalette\r@@t}
     const indexBox = Atom.createBox(
-      new Context(parentContext, this.style, 'scriptscriptstyle'),
+      new Context({ parent: context, mathstyle: 'scriptscriptstyle' }),
       this.above,
-      { style: this.style, newList: true }
+      { type: 'ignore' }
     );
 
     if (!indexBox) {
@@ -174,8 +189,11 @@ export class SurdAtom extends Atom {
         classes: this.containsCaret ? 'ML__contains-caret' : '',
         type: 'inner',
       });
+      result.setStyle('display', 'inline-block');
+      result.setStyle('height', result.height + result.depth, 'em');
+
       if (this.caret) result.caret = this.caret;
-      return this.bind(parentContext, result.wrap(parentContext));
+      return this.bind(context, result);
     }
 
     // Build a stack with the index shifted up correctly.
@@ -193,13 +211,12 @@ export class SurdAtom extends Atom {
     // kerning
     const result = new Box(
       [
-        new Box(indexStack, { classes: 'ML__sqrt-index', newList: true }),
+        new Box(indexStack, { classes: 'ML__sqrt-index', type: 'ignore' }),
         delimBox,
         bodyBox,
       ],
       {
         type: 'inner',
-        newList: true,
         classes: this.containsCaret ? 'ML__contains-caret' : '',
       }
     );
@@ -207,6 +224,6 @@ export class SurdAtom extends Atom {
     result.depth = delimBox.depth;
 
     if (this.caret) result.caret = this.caret;
-    return this.bind(parentContext, result.wrap(parentContext));
+    return this.bind(context, result);
   }
 }

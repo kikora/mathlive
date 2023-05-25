@@ -11,7 +11,7 @@ import { contentDidChange, contentWillChange } from '../editor-model/listeners';
 import { MathfieldPrivate } from './mathfield-private';
 import { ModeEditor } from './mode-editor';
 import { requestUpdate } from './render';
-import type { GlobalContext } from '../core/types';
+import { ContextInterface } from 'core/types';
 
 export class TextModeEditor extends ModeEditor {
   constructor() {
@@ -33,11 +33,15 @@ export class TextModeEditor extends ModeEditor {
         data: text,
       })
     ) {
-      mathfield.snapshot();
+      mathfield.stopCoalescingUndo();
+      mathfield.stopRecording();
       if (this.insert(mathfield.model, text)) {
         contentDidChange(mathfield.model, { inputType: 'insertFromPaste' });
+        mathfield.startRecording();
+        mathfield.snapshot('paste');
         requestUpdate(mathfield);
       }
+      mathfield.startRecording();
 
       return true;
     }
@@ -56,12 +60,11 @@ export class TextModeEditor extends ModeEditor {
     if (!options.selectionMode) options.selectionMode = 'placeholder';
     if (!options.format) options.format = 'auto';
 
-    const { suppressChangeNotifications } = model;
-    if (options.suppressChangeNotifications)
-      model.suppressChangeNotifications = true;
+    const { silenceNotifications } = model;
+    if (options.silenceNotifications) model.silenceNotifications = true;
 
-    const contentWasChanging = model.suppressChangeNotifications;
-    model.suppressChangeNotifications = true;
+    const contentWasChanging = model.silenceNotifications;
+    model.silenceNotifications = true;
 
     //
     // Delete any selected items
@@ -79,7 +82,7 @@ export class TextModeEditor extends ModeEditor {
     else if (options.insertionMode === 'insertAfter')
       model.collapseSelection('forward');
 
-    const newAtoms = convertStringToAtoms(text, model.mathfield);
+    const newAtoms = convertStringToAtoms(text, model.mathfield.context);
     // Some atoms may already have a style (for example if there was an
     // argument, i.e. the selection, that this was applied to).
     // So, don't apply style to atoms that are already styled, but *do*
@@ -92,7 +95,7 @@ export class TextModeEditor extends ModeEditor {
 
     // Prepare to dispatch notifications
     // (for selection changes, then content change)
-    model.suppressChangeNotifications = contentWasChanging;
+    model.silenceNotifications = contentWasChanging;
 
     if (options.selectionMode === 'before') {
       // Do nothing: don't change the position.
@@ -102,13 +105,13 @@ export class TextModeEditor extends ModeEditor {
 
     contentDidChange(model, { data: text, inputType: 'insertText' });
 
-    model.suppressChangeNotifications = suppressChangeNotifications;
+    model.silenceNotifications = silenceNotifications;
 
     return true;
   }
 }
 
-function convertStringToAtoms(s: string, context: GlobalContext): Atom[] {
+function convertStringToAtoms(s: string, context: ContextInterface): Atom[] {
   // Map special TeX characters to alternatives
   // Must do this one first, since other replacements include backslash
   s = s.replace(/\\/g, '\\textbackslash ');
@@ -127,7 +130,7 @@ function convertStringToAtoms(s: string, context: GlobalContext): Atom[] {
   s = s.replace(/~/g, '\\textasciitilde ');
   s = s.replace(/£/g, '\\textsterling ');
 
-  return parseLatex(s, context, { parseMode: 'text' });
+  return parseLatex(s, { context, parseMode: 'text' });
 }
 
 new TextModeEditor();

@@ -1,12 +1,10 @@
 import type { Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
 
 import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
 import { addSVGOverlay, Box } from '../core/box';
 import { Context } from '../core/context';
-import { convertToDimension } from '../core/parser';
-import { convertDimensionToEm } from '../core/registers-utils';
 import { latexCommand } from '../core/tokenizer';
+import { getDefinition } from '../core-definitions/definitions-utils';
 
 export type EncloseAtomOptions = {
   shadow?: string;
@@ -56,10 +54,9 @@ export class EncloseAtom extends Atom {
     command: string,
     body: Atom[],
     notation: Notations,
-    context: GlobalContext,
     options: EncloseAtomOptions
   ) {
-    super('enclose', context, { command, style: options.style });
+    super({ type: 'enclose', command, style: options.style });
     this.body = body;
     this.backgroundcolor = options.backgroundcolor;
     if (notation.updiagonalarrow) notation.updiagonalstrike = false;
@@ -83,13 +80,11 @@ export class EncloseAtom extends Atom {
     this.captureSelection = true; // Do not let children be selected
   }
 
-  static fromJson(json: AtomJson, context: GlobalContext): EncloseAtom {
-    console.log(json);
+  static fromJson(json: AtomJson): EncloseAtom {
     return new EncloseAtom(
       json.command,
       json.body,
       json.notation,
-      context,
       json as any as EncloseAtomOptions
     );
   }
@@ -108,7 +103,15 @@ export class EncloseAtom extends Atom {
     };
   }
 
-  serialize(options: ToLatexOptions): string {
+  _serialize(options: ToLatexOptions): string {
+    if (
+      !(options.expandMacro || options.skipStyles) &&
+      typeof this.verbatimLatex === 'string'
+    )
+      return this.verbatimLatex;
+    const def = getDefinition(this.command, this.mode);
+    if (def?.serialize) return def.serialize(this, options);
+
     let command = this.command ?? '';
     if (this.command === '\\enclose') {
       command += '{' + Object.keys(this.notation).join(' ') + '}';
@@ -141,22 +144,18 @@ export class EncloseAtom extends Atom {
   }
 
   render(parentContext: Context): Box | null {
-    const context = new Context(parentContext, this.style);
+    const context = new Context({ parent: parentContext }, this.style);
 
     const base = Atom.createBox(context, this.body);
 
     if (!base) return null;
 
     // Account for the padding
-    const padding =
-      convertDimensionToEm(
-        this.padding && this.padding !== 'auto'
-          ? convertToDimension(this.padding, {
-              ...this.context,
-              registers: parentContext.registers,
-            })
-          : context.getRegisterAsDimension('fboxsep')
-      ) ?? 0;
+    const padding = context.toEm(
+      !this.padding || this.padding === 'auto'
+        ? { register: 'fboxsep' }
+        : { string: this.padding }
+    );
     const borderWidth = borderDim(this.borderStyle);
 
     // The 'ML__notation' class is required to prevent the box from being omitted
@@ -164,12 +163,11 @@ export class EncloseAtom extends Atom {
     const notation = new Box(null, { classes: 'ML__notation' });
     notation.setStyle('box-sizing', 'border-box');
 
-    notation.setStyle('top', `calc(-${borderWidth} / 2 - ${padding}em)`);
     notation.setStyle('left', `calc(-${borderWidth} / 2 - ${padding}em)`);
 
     notation.setStyle(
       'height',
-      `calc(100% + ${2 * padding}em + 2 * ${borderWidth})`
+      `calc(${base.height + base.depth + 2 * padding}em)`
     );
 
     notation.height = base.height + padding;
@@ -179,8 +177,12 @@ export class EncloseAtom extends Atom {
       `calc(100% + ${2 * padding}em + 2 * ${borderWidth})`
     );
 
-    if (this.backgroundcolor)
-      notation.setStyle('background-color', this.backgroundcolor);
+    if (this.backgroundcolor) {
+      notation.setStyle(
+        'background-color',
+        this.backgroundcolor ?? 'transparent'
+      );
+    }
 
     if (this.notation.box) notation.setStyle('border', this.borderStyle);
     if (this.notation.actuarial) {

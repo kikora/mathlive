@@ -1,32 +1,33 @@
-import type { Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
-
-import { Atom, AtomJson } from '../core/atom-class';
+import { Atom, AtomJson, CreateAtomOptions } from '../core/atom-class';
 import { Box } from '../core/box';
 import { Context } from '../core/context';
-import { BoxType } from '../core/types';
+import type { BoxType } from '../core/types';
 
 export class OverlapAtom extends Atom {
   private readonly align?: 'left' | 'right';
-  private readonly boxType: BoxType;
+  private readonly boxType?: BoxType;
   constructor(
-    command: string,
-    body: string | Atom[],
-    context: GlobalContext,
-    options?: { align?: 'left' | 'right'; boxType?: BoxType; style: Style }
+    options: CreateAtomOptions & {
+      body: string | Atom[];
+      align?: 'left' | 'right';
+      boxType?: BoxType;
+    }
   ) {
-    super('overlap', context, { command, style: options?.style });
-    this.skipBoundary = true;
-    if (typeof body === 'string')
-      this.body = [new Atom('mord', context, { value: body })];
-    else this.body = body;
+    const body = options.body;
+    super({
+      ...options,
+      type: 'overlap',
+      body: typeof body === 'string' ? [new Atom({ value: body })] : body,
+      style: options?.style,
+    });
 
-    this.align = options?.align ?? 'left';
-    this.boxType = options?.boxType ?? 'ord';
+    this.skipBoundary = true;
+    this.align = options?.align;
+    this.boxType = options?.boxType;
   }
 
-  static fromJson(json: AtomJson, context: GlobalContext): OverlapAtom {
-    return new OverlapAtom(json.command, json.body, context, json as any);
+  static fromJson(json: AtomJson): OverlapAtom {
+    return new OverlapAtom(json as any);
   }
 
   toJson(): AtomJson {
@@ -47,9 +48,8 @@ export class OverlapAtom extends Atom {
     return this.bind(
       context,
       new Box([inner, new Box(null, { classes: 'fix' })], {
-        classes: this.align === 'left' ? 'llap' : 'rlap',
+        classes: this.align === 'right' ? 'rlap' : 'llap',
         type: this.boxType,
-        newList: true,
       })
     );
   }

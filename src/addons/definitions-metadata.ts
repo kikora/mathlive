@@ -1,5 +1,9 @@
 /// ^.*('\\.*').*
-import { LATEX_COMMANDS, MATH_SYMBOLS } from '../core-definitions/definitions';
+
+import {
+  LATEX_COMMANDS,
+  MATH_SYMBOLS,
+} from '../core-definitions/definitions-utils';
 
 // Frequency of a symbol.
 // String constants corresponding to frequency values,
@@ -118,14 +122,14 @@ metadata(
   'Decoration',
   ['\\fcolorbox'],
   RARE,
-  '\\fcolorbox{#cd0030}{#ffd400}{\\unicode{"2B1A}}'
+  '\\fcolorbox{#cd0030}{#ffd400}{\\char"2B1A}'
 );
 
 metadata(
   'Decoration',
   ['\\colorbox'],
   RARE,
-  '\\colorbox{#fbc0bd}{\\unicode{"2B1A}}'
+  '\\colorbox{#fbc0bd}{\\char"2B1A}'
 );
 
 metadata(
@@ -139,7 +143,7 @@ metadata(
   'Decoration',
   ['\\bbox'],
   RARE,
-  '\\bbox[#ffd400, solid 2px #ffd400]{\\unicode{"2B1A}}'
+  '\\bbox[#ffd400, solid 2px #ffd400]{\\char"2B1A}'
 );
 
 metadata('Styling', ['\\mathbb'], SUPERCOMMON, '$0{Don Knuth}');
@@ -270,13 +274,13 @@ metadata(
   'Fractions',
   ['\\over', '\\atop', '\\choose'],
   RARE,
-  '\\unicode{"2B1A} $0 \\unicode{"2B1A}'
+  '\\char"2B1A $0 \\char"2B1A'
 );
 metadata(
   'Fractions',
   ['\\overwithdelims', '\\atopwithdelims'],
   RARE,
-  '{\\unicode{"2B1A} $0{\\lbrace}{\\rbrace} \\unicode{"2B1A}}'
+  '{\\char"2B1A $0{\\lbrace}{\\rbrace} \\char"2B1A}'
 );
 
 metadata(
@@ -526,7 +530,7 @@ metadata(
     '\\longmapsto',
     '\\mapsto',
     '\\Longleftrightarrow',
-    '\\rightleftarrows',
+    '\\leftrightarrows',
     '\\leftarrow',
     '\\curvearrowleft',
     '\\uparrow',
@@ -630,9 +634,9 @@ metadata(
     '\\xhookrightarrow',
     '\\xmapsto',
     '\\xtofrom',
-    '\\xrightleftarrows', // From mhchem.sty package
-    '\\xrightequilibrium', // From mhchem.sty package
-    '\\xleftequilibrium',
+    '\\xleftrightarrows', // From mhchem.sty package
+    '\\xRightleftharpoons', // From mhchem.sty package
+    '\\xLeftrightharpoons',
   ],
   RARE,
   '$0[below]{above}=0'
@@ -1026,19 +1030,19 @@ metadata(
   'Spacing',
   ['\\space', '\\quad', '\\qquad'],
   COMMON,
-  '\\unicode{"203A}$0\\unicode{"2039}'
+  '\\char"203A$0\\char"2039'
 );
 metadata(
   'Spacing',
   ['\\!', '\\,', '\\:', '\\;', '\\enskip', '\\enspace'],
   RARE,
-  '\\unicode{"203A}$0\\unicode{"2039}'
+  '\\char"203A$0\\char"2039'
 );
 metadata(
   'Spacing',
   ['\\hspace', '\\hspace*'],
   RARE,
-  '\\unicode{"203A}$0{1em}\\unicode{"2039}'
+  '\\char"203A$0{1em}\\char"2039'
 );
 metadata(
   'Punctuation',

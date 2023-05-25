@@ -6,13 +6,16 @@ import type {
   Selection,
   OutputFormat,
 } from '../public/mathfield';
-import { ContentChangeOptions, ContentChangeType } from '../public/options';
+import type {
+  ContentChangeOptions,
+  ContentChangeType,
+} from '../public/options';
+import type { ParseMode } from '../public/core-types';
 
 import type { MathfieldPrivate } from '../editor-mathfield/mathfield-private';
 
 import { Atom, ToLatexOptions } from '../core/atom-class';
 import { joinLatex } from '../core/tokenizer';
-import { Mode } from '../core/modes';
 import { AtomJson, BranchName, fromJson } from '../core/atom';
 
 import { toMathML } from '../addons/math-ml';
@@ -27,20 +30,15 @@ import {
   ModelListeners,
   selectionDidChange,
 } from './listeners';
-import {
-  ModelOptions,
-  isOffset,
-  isSelection,
-  isRange,
-  AnnounceVerb,
-} from './utils';
+import { isOffset, isSelection, isRange, AnnounceVerb } from './utils';
 import { compareSelection, range } from './selection-utils';
-import { ArrayAtom } from '../core-atoms/array';
-import { LatexAtom } from 'core-atoms/latex';
+import type { ArrayAtom } from '../core-atoms/array';
+import { LatexAtom } from '../core-atoms/latex';
 
 export type ModelState = {
   content: AtomJson;
   selection: Selection;
+  mode: ParseMode;
 };
 
 export type GetAtomOptions = {
@@ -50,35 +48,79 @@ export type GetAtomOptions = {
 /** @internal */
 export class ModelPrivate implements Model {
   readonly mathfield: MathfieldPrivate;
-  readonly options: ModelOptions;
-  listeners: ModelListeners;
+
+  mode: ParseMode;
+
+  silenceNotifications: boolean;
+  readonly listeners: ModelListeners;
 
   root: Atom;
-  suppressChangeNotifications: boolean;
 
   private _selection: Selection;
   private _anchor: Offset;
   private _position: Offset;
 
   constructor(
-    options: ModelOptions,
-    listeners: ModelListeners,
-    target: Mathfield
+    target: Mathfield,
+    mode: ParseMode,
+    root: Atom,
+    listeners: ModelListeners
   ) {
-    this.options = options;
+    this.mathfield = target as MathfieldPrivate;
+
+    this.mode = mode;
+    this.silenceNotifications = false;
+
+    this.listeners = listeners;
+
     this._selection = { ranges: [[0, 0]], direction: 'none' };
     this._anchor = 0;
     this._position = 0;
 
-    this.mathfield = target as MathfieldPrivate;
-    this.suppressChangeNotifications = false;
+    this.root = root;
+  }
 
-    this.root = new Atom('root', target as MathfieldPrivate, {
-      mode: options.mode,
-    });
-    this.root.body = [];
+  dispose(): void {
+    (this as any).mathfield = undefined;
+    (this as any).listeners.onSelectionDidChange = undefined;
+    (this as any).listeners.onContentWillChange = undefined;
+  }
 
-    this.setListeners(listeners);
+  getState(): ModelState {
+    const selection: Selection = { ranges: [...this._selection.ranges] };
+    if (this.selection.direction && this.selection.direction !== 'none')
+      selection.direction = this.selection.direction;
+
+    return {
+      content: this.root.toJson(),
+      selection,
+      mode: this.mode,
+    };
+  }
+
+  setState(
+    state: ModelState,
+    options?: {
+      silenceNotifications?: boolean;
+      type?: 'redo' | 'undo';
+    }
+  ): void {
+    const wasSuppressing = this.silenceNotifications;
+    this.silenceNotifications = options?.silenceNotifications ?? true;
+    let changeOption: ContentChangeOptions = {};
+    if (options?.type === 'undo') changeOption = { inputType: 'historyUndo' };
+    if (options?.type === 'redo') changeOption = { inputType: 'historyRedo' };
+    // Restore the content and selection
+    if (contentWillChange(this, changeOption)) {
+      const didSuppress = this.silenceNotifications;
+      this.silenceNotifications = true;
+      this.mode = state.mode;
+      this.root = fromJson(state.content);
+      this.selection = state.selection;
+      this.silenceNotifications = didSuppress;
+      contentDidChange(this, changeOption);
+    }
+    this.silenceNotifications = wasSuppressing;
   }
 
   get atoms(): Atom[] {
@@ -192,36 +234,8 @@ export class ModelPrivate implements Model {
 
     if (atom instanceof LatexAtom && atom.isSuggestion)
       atom.isSuggestion = false;
-  }
 
-  getState(): ModelState {
-    return {
-      content: this.root.toJson(),
-      selection: this.selection,
-    };
-  }
-
-  setState(
-    state: ModelState,
-    options?: {
-      suppressChangeNotifications?: boolean;
-      type?: 'redo' | 'undo';
-    }
-  ): void {
-    const wasSuppressing = this.suppressChangeNotifications;
-    this.suppressChangeNotifications =
-      options?.suppressChangeNotifications ?? true;
-    let changeOption: ContentChangeOptions = {};
-    if (options?.type === 'undo') changeOption = { inputType: 'historyUndo' };
-    if (options?.type === 'redo') changeOption = { inputType: 'historyRedo' };
-    // Restore the content and selection
-    if (contentWillChange(this, changeOption)) {
-      this.root = fromJson(state.content, this.mathfield);
-      this.selection = state.selection;
-
-      contentDidChange(this, changeOption);
-    }
-    this.suppressChangeNotifications = wasSuppressing;
+    this.mathfield.stopCoalescingUndo();
   }
 
   /**
@@ -344,7 +358,8 @@ export class ModelPrivate implements Model {
     const last = Math.max(start, end);
 
     // If this is the entire selection, return the root
-    if (first === 1 && last === this.lastOffset) return [this.root];
+    if (!options.includeChildren && first === 1 && last === this.lastOffset)
+      return [this.root];
 
     let result: Atom[] = [];
     for (let i = first; i <= last; i++) {
@@ -422,8 +437,7 @@ export class ModelPrivate implements Model {
       } else {
         // If the root is an array, replace with a plain root
         result = (this.root as ArrayAtom).cells.flat();
-        this.root = new Atom('root', this.root.context);
-        this.root.body = [];
+        this.root = new Atom({ type: 'root', body: [] });
         return result;
       }
     }
@@ -440,13 +454,11 @@ export class ModelPrivate implements Model {
     const format: string = inFormat ?? 'latex';
 
     if (format.startsWith('latex')) {
-      return joinLatex(
-        Mode.serialize([atom], {
-          expandMacro: format === 'latex-expanded',
-          skipStyles: format === 'latex-unstyled',
-          defaultMode: this.mathfield.options.defaultMode,
-        })
-      );
+      return Atom.serialize([atom], {
+        expandMacro: format === 'latex-expanded',
+        skipStyles: format === 'latex-unstyled',
+        defaultMode: this.mathfield.options.defaultMode,
+      });
     }
 
     if (format === 'math-ml') return toMathML(atom);
@@ -477,28 +489,9 @@ export class ModelPrivate implements Model {
       return result;
     }
 
-    if (format === 'math-json') {
-      if (!window.MathfieldElement.computeEngine) {
-        if (!window[Symbol.for('io.cortexjs.compute-engine')]) {
-          console.error(
-            'The CortexJS Compute Engine library is not available.\nLoad the library, for example with:\nimport "https://unpkg.com/@cortex-js/compute-engine?module"'
-          );
-        }
-        return '["Error", "compute-engine-not-available"]';
-      }
-      try {
-        const expr = window.MathfieldElement.computeEngine.parse(
-          Atom.serialize(atom, { expandMacro: false, defaultMode: 'math' })
-        );
-        return JSON.stringify(expr.json);
-      } catch (e) {
-        return JSON.stringify(['Error', `'${e.toString()}'`]);
-      }
-    }
-
     if (format === 'ascii-math') return atomToAsciiMath(atom);
 
-    console.error(`MathLive {{SDK_VERSION}}: Unknown format "${format}`);
+    console.error(`MathLive {{SDK_VERSION}}: Unexpected format "${format}`);
     return '';
   }
 
@@ -521,7 +514,8 @@ export class ModelPrivate implements Model {
     if (arg1 === undefined) return this.atomToString(this.root, 'latex');
 
     // GetValue(format): Output format only
-    if (typeof arg1 === 'string') return this.atomToString(this.root, arg1);
+    if (typeof arg1 === 'string' && arg1 !== 'math-json')
+      return this.atomToString(this.root, arg1);
 
     let ranges: Range[];
     let format: OutputFormat;
@@ -535,8 +529,26 @@ export class ModelPrivate implements Model {
       ranges = arg1.ranges;
       format = arg2 as OutputFormat;
     } else {
-      ranges = [];
-      format = 'latex';
+      ranges = [this.normalizeRange([0, -1])];
+      format = (arg1 as OutputFormat) ?? 'latex';
+    }
+
+    if (format === 'math-json') {
+      if (!window.MathfieldElement.computeEngine) {
+        if (!window[Symbol.for('io.cortexjs.compute-engine')]) {
+          console.error(
+            'The CortexJS Compute Engine library is not available.\nLoad the library, for example with:\nimport "https://unpkg.com/@cortex-js/compute-engine?module"'
+          );
+        }
+        return '["Error", "compute-engine-not-available"]';
+      }
+      const latex = this.getValue({ ranges }, 'latex-unstyled');
+      try {
+        const expr = window.MathfieldElement.computeEngine.parse(latex);
+        return JSON.stringify(expr.json);
+      } catch (e) {
+        return JSON.stringify(['Error', `'${e.toString()}'`]);
+      }
     }
 
     if (format.startsWith('latex')) {
@@ -619,10 +631,6 @@ export class ModelPrivate implements Model {
     });
   }
 
-  setListeners(listeners: ModelListeners): void {
-    this.listeners = listeners;
-  }
-
   /**
    * This method is called to provide feedback when using a screen reader
    * or other assistive device, for example when changing the selection or
@@ -670,8 +678,8 @@ export class ModelPrivate implements Model {
     const oldAnchor = this._anchor;
     const oldPosition = this._position;
 
-    const saved = this.suppressChangeNotifications;
-    this.suppressChangeNotifications = true;
+    const saved = this.silenceNotifications;
+    this.silenceNotifications = true;
     const previousCounter = this.root.changeCounter;
 
     f();
@@ -682,7 +690,7 @@ export class ModelPrivate implements Model {
       oldPosition !== this._position ||
       compareSelection(this._selection, oldSelection) === 'different';
 
-    this.suppressChangeNotifications = saved;
+    this.silenceNotifications = saved;
 
     // Notify of content change, if requested
     if (options.content && contentChanged)

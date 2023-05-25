@@ -144,7 +144,7 @@ const VARIANTS: {
   //   '\\xhookleftarrow{#@}',
   //   '\\xtofrom{#@}',
   //   '\\xleftequilibrium{#@}', // From mhchem.sty package
-  //   '\\xrightleftarrows{#@}', // From mhchem.sty package
+  //   '\\xleftrightarrows{#@}', // From mhchem.sty package
   // ],
   // 'xrightarrows': [
   //   '\\xrightarrow{#@}',
@@ -159,8 +159,8 @@ const VARIANTS: {
   //   '\\xrightleftharpoons{#@}',
   //   '\\xhookrightarrow{#@}',
   //   '\\xmapsto{#@}',
-  //   '\\xrightequilibrium{#@}', // From mhchem.sty package
-  //   '\\xrightleftarrows{#@}', // From mhchem.sty package
+  //   '\\xLeftrightharpoons{#@}', // From mhchem.sty package
+  //   '\\xleftrightarrows{#@}', // From mhchem.sty package
   // ],
 
   // 'absnorm': [{latex:'\\lVert #@ \\rVert', aside:'norm'},
@@ -203,37 +203,37 @@ const VARIANTS: {
       aside: 'negative thin space<br>⁻³⧸₁₈ em',
     },
     {
-      latex: '\\unicode{"203A}\\,\\unicode{"2039}',
+      latex: '\\char"203A\\,\\char"2039',
       insert: '\\,',
       aside: 'thin space<br>³⧸₁₈ em',
     },
     {
-      latex: '\\unicode{"203A}\\:\\unicode{"2039}',
+      latex: '\\char"203A\\:\\char"2039',
       insert: '\\:',
       aside: 'medium space<br>⁴⧸₁₈ em',
     },
     {
-      latex: '\\unicode{"203A}\\;\\unicode{"2039}',
+      latex: '\\char"203A\\;\\char"2039',
       insert: '\\;',
       aside: 'thick space<br>⁵⧸₁₈ em',
     },
     {
-      latex: '\\unicode{"203A}\\ \\unicode{"2039}',
+      latex: '\\char"203A\\ \\char"2039',
       insert: '\\ ',
       aside: '⅓ em',
     },
     {
-      latex: '\\unicode{"203A}\\enspace\\unicode{"2039}',
+      latex: '\\char"203A\\enspace\\char"2039',
       insert: '\\enspace',
       aside: '½ em',
     },
     {
-      latex: '\\unicode{"203A}\\quad\\unicode{"2039}',
+      latex: '\\char"203A\\quad\\char"2039',
       insert: '\\quad',
       aside: '1 em',
     },
     {
-      latex: '\\unicode{"203A}\\qquad\\unicode{"2039}',
+      latex: '\\char"203A\\qquad\\char"2039',
       insert: '\\qquad',
       aside: '2 em',
     },
@@ -247,6 +247,7 @@ export function showVariantsPanel(
   onClose?: () => void
 ): void {
   const keyboard = VirtualKeyboard.singleton;
+  if (!keyboard) return;
   const keycap = parentKeycap(element);
   const variantDef = keyboard.getKeycap(keycap?.id)?.variants ?? '';
   if (
@@ -294,7 +295,7 @@ export function showVariantsPanel(
   //
   if (!Scrim.scrim) Scrim.scrim = new Scrim();
   Scrim.scrim.open({
-    root: keyboard.container?.querySelector('.ML__keyboard'),
+    root: keyboard?.container?.querySelector('.ML__keyboard'),
     child: variantPanel,
   });
 

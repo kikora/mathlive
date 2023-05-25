@@ -3,6 +3,7 @@ import {
   EditToolbarOptions,
   VirtualKeyboardKeycap,
   VirtualKeyboardLayout,
+  VirtualKeyboardName,
 } from '../public/virtual-keyboard';
 import { validateOrigin } from '../editor-mathfield/utils';
 import { getCommandTarget } from '../editor/commands';
@@ -47,7 +48,8 @@ export class VirtualKeyboardProxy
     [type: string]: Set<EventListenerOrEventListenerObject | null>;
   };
 
-  private _boundingRect: DOMRect;
+  private _boundingRect = new DOMRect(0, 0, 0, 0);
+  private _isShifted = false;
 
   constructor() {
     window.addEventListener('message', this);
@@ -57,7 +59,7 @@ export class VirtualKeyboardProxy
   set alphabeticLayout(value: AlphabeticKeyboardLayout) {
     this.sendMessage('update-setting', { alphabeticLayout: value });
   }
-  set layouts(value: (string | VirtualKeyboardLayout)[]) {
+  set layouts(value: (VirtualKeyboardName | VirtualKeyboardLayout)[]) {
     this.sendMessage('update-setting', { layouts: value });
   }
   set editToolbar(value: EditToolbarOptions) {
@@ -88,6 +90,10 @@ export class VirtualKeyboardProxy
     this.sendMessage('hide', options);
   }
 
+  get isShifted(): boolean {
+    return this._isShifted;
+  }
+
   get visible(): boolean {
     return this._boundingRect.height > 0;
   }
@@ -108,10 +114,6 @@ export class VirtualKeyboardProxy
 
   updateToolbar(mf: MathfieldProxy): void {
     this.sendMessage('update-toolbar', mf);
-  }
-
-  updateEnvironmemtPopover(mf: MathfieldProxy): void {
-    this.sendMessage('update-setting');
   }
 
   update(mf: MathfieldProxy): void {
@@ -178,6 +180,7 @@ export class VirtualKeyboardProxy
     if (action === 'synchronize-proxy') {
       console.log('synchronize-proxy', window, msg.boundingRect);
       this._boundingRect = msg.boundingRect;
+      this._isShifted = msg.isShifted;
       return;
     }
 

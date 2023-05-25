@@ -1,5 +1,5 @@
 import { PT_PER_EM } from './font-metrics';
-import type { Dimension, Glue } from '../public/core-types';
+import type { Dimension, Glue, LatexValue } from '../public/core-types';
 
 export function convertDimensionToPt(
   value?: Dimension,
@@ -34,7 +34,12 @@ export function convertDimensionToEm(
   precision?: number
 ): number {
   if (value === null) return 0;
-  return convertDimensionToPt(value, precision) / PT_PER_EM;
+  const result = convertDimensionToPt(value) / PT_PER_EM;
+  if (Number.isFinite(precision)) {
+    const factor = 10 ** precision!;
+    return Math.round(result * factor) / factor;
+  }
+  return result;
 }
 
 export function convertGlueToEm(value: Glue): number {
@@ -65,13 +70,101 @@ export function serializeGlue(value: Glue): string {
   return result;
 }
 
-export function serializeGlueOrDimenstion(value: Glue | Dimension): string {
+export function serializeGlueOrDimention(value: Glue | Dimension): string {
   if ('glue' in value) return serializeGlue(value);
   return serializeDimension(value);
 }
 
-export function addDimension(lhs: Dimension, rhs: Dimension): Dimension {
-  const lhsPt = convertDimensionToPt(lhs);
-  const rhsPt = convertDimensionToPt(rhs);
-  return { dimension: lhsPt + rhsPt, unit: 'pt' };
+export function serializeLatexValue(
+  value: LatexValue | null | undefined
+): string | null {
+  if (value === null || value === undefined) return null;
+  let result = '';
+  if ('dimension' in value) result = `${value.dimension}${value.unit ?? 'pt'}`;
+
+  if ('glue' in value) result = serializeGlue(value);
+
+  if ('number' in value) {
+    if (!('base' in value) || value.base === 'decimal')
+      result = Number(value.number).toString();
+    else if (value.base === 'alpha')
+      result = `\`${String.fromCodePoint(value.number)}`;
+    else {
+      const i = Math.round(value.number) >>> 0;
+      if (value.base === 'hexadecimal') {
+        result = Number(i).toString(16).toUpperCase();
+
+        if (i <= 0xff) result = result.padStart(2, '0');
+        else if (i <= 0xffff) result = result.padStart(4, '0');
+        else if (i <= 0xffffff) result = result.padStart(6, '0');
+        else result = result.padStart(8, '0');
+
+        result = `"${result}`;
+      } else if (value.base === 'octal') {
+        result = Number(i).toString(8);
+        if (i <= 0o77) result = result.padStart(2, '0');
+        else if (i <= 0x7777) result = result.padStart(4, '0');
+        else result = result.padStart(8, '0');
+        result = `'${result}`;
+      }
+    }
+  }
+
+  if ('register' in value) {
+    if ('factor' in value) {
+      if (value.factor === -1) result = '-';
+      else if (value.factor !== 1) result = Number(value.factor).toString();
+    }
+    if ('global' in value && value.global) result += '\\global';
+    result += `\\${value.register}`;
+  }
+
+  if ('string' in value) result = value.string;
+
+  if (value.relax ?? false) result += '\\relax';
+
+  return result;
+}
+
+export function multiplyLatexValue(
+  value: LatexValue | null,
+  factor: number
+): LatexValue | null {
+  if (value === null || value === undefined) return null;
+
+  if ('number' in value) return { ...value, number: value.number * factor };
+  if ('register' in value) {
+    if ('factor' in value && value.factor)
+      return { ...value, factor: value.factor * factor };
+    return { ...value, factor };
+  }
+
+  if ('dimension' in value)
+    return { ...value, dimension: value.dimension * factor };
+
+  if ('glue' in value) {
+    if (value.shrink && value.grow) {
+      return {
+        glue: multiplyLatexValue(value.glue, factor) as Dimension,
+        shrink: multiplyLatexValue(value.shrink, factor) as Dimension,
+        grow: multiplyLatexValue(value.grow, factor) as Dimension,
+      };
+    }
+    if (value.shrink) {
+      return {
+        glue: multiplyLatexValue(value.glue, factor) as Dimension,
+        shrink: multiplyLatexValue(value.shrink, factor) as Dimension,
+      };
+    }
+    if (value.grow) {
+      return {
+        glue: multiplyLatexValue(value.glue, factor) as Dimension,
+        grow: multiplyLatexValue(value.grow, factor) as Dimension,
+      };
+    }
+    return {
+      glue: multiplyLatexValue(value.glue, factor) as Dimension,
+    };
+  }
+  return null;
 }

@@ -1,4 +1,121 @@
-## [Unreleased]
+## 0.94.5 (2023-05-24)
+
+## Bug Fix
+
+- The selection in read only mathfield was no longer visible.
+
+## 0.94.3 (2023-05-22)
+
+## Improvements
+
+- The `mathVirtualKeyboard.layouts` property was a frozen array (an array 
+  that cannot be modified) but that wasn't clear. Now, a runtime error is 
+  produced if an attempt is made to modify the array. If using Typescript, 
+  a compile-time error is also generated.
+  
+## Bug Fixes
+
+- **#1979** Vectors were displayed with an offset
+- **#1978** Pasting or inserting some content could result in a runtime error
+- **#1978** Text content was not properly serialized in a `\text{}` command
+- **#1682** Vectors (and other accents) are now spoken correctly
+- **#1981** Adjusting the selection by moving backwards could result in 
+  a runtime error.
+- **#1982** Improved resilience when a mathfield is in an embedded iframe
+  which is not allowed to access the top window by cross-origin policy. In 
+  this situation the virtual keyboard is not available, but input via physical
+  keyboard will work.
+
+## 0.94.2 (2023-05-22)
+
+## Bug Fixes
+
+- **#1976** Toggling the virtual keyboard several times would eventually not
+  display the virtual keyboard.
+- Only apply smartFence in math mode (not in text or LaTeX mode).
+- **#1975** When inserting a square root, do not insert an index by default
+
+## 0.94.1 (2023-05-21)
+
+## Improvements
+
+- Use constructable stylesheets. This results in improved performance and a
+  reduction of memory consuption by 2/3 in a page with 1,000 mathfields.
+- Improved MathML serialization (**#1870**, **#1803**, **#1933**, **#1648**, **#737**, **#150**, variants: blackboard, fraktur, bold, etc...).
+
+## Bug Fixes
+
+- **#1963** Typing a "/" after a digit containing a french decimal (`,`) did 
+  not include the digits before the decimal.
+
+## 0.94.0 (2023-05-18)
+
+## New Features
+
+- Added support for `\raise`, `\lower` and `\raisebox` commands. Those commands
+  were necessary to render some chemical bonds.
+- Pressing `(`, `[` or `{` with a selection will enclose the selection with 
+  this delimiter.
+## Improvements
+
+- Improved parsing/serialization/rendering of content with a mix of text and math.
+- Various rendering improvements, mostly of edge cases.
+- Improved behavior of the Shift key in the math keyboard. Single-press
+  the Shift key to set it temporarily, double-press it key to lock it (similar 
+  to CapsLock), triple-press it to unlock. This is similar behavior to the 
+  ones of mobile virtual keyboards.
+- **#1647** Improved rendering of chemical bonds, e.g. `\ce{ O\bond{~-}H}`
+- Only on iOS, intercepts the cmd+XCV keyboard shortcut. On other platforms,
+  use the standard cut/copy/paste commands, which do not require user 
+  permission.
+- The tooltips displayed by the `\mathtooltip{}` and `\texttip{}` commands
+  are now displayed when used with a static formula.
+- Improvements to smart fence behavior, including better undoability.
+
+
+## Bug Fixes
+
+- Selection display was incorrect when the equation included a colored 
+  background.
+- Pasing text while in LaTeX mode now works.
+- Some of the arrows for mhchem have been renamed and are now displaying correctly
+- **#1964** Prevent a runtime error when a mathfield is embedded in an iframe
+  and MathLive is not loaded in the host document.
+- **#1970** The environment popover was not always positioned correctly.
+- Correctly return unstyled LaTeX when requested (with format `unstyled-latex`).
+  This strips any color/background-color/font sizing commands from the ouput.
+- The caret is no longer displayed twice when placed after `\cos^2` (operators
+  with a superscript).
+
+## 0.93.0 (2023-05-08)
+
+## New Features
+
+- Support for `\the` command. For example, `\the\year`. Its argument can 
+  be a literal or a register, preceded by an optional factor literal.
+- In addition to the `label` property, the `key` property can also now be used
+  for keycap shortcuts. This allow overriding of the shortcut label. For example
+  `{key: "[undo]", label: "undo"}`
+- Added support for `--keyboard-row-padding-left` and `--keyboard-row-padding-right` as an option to account for shadows or other decoration that may spill outside the box of a keycap.
+- Fixed opacity of Undo button in virtual keyboard, when the button is not applicable.
+- The minFontScale property has been added that specifies the minimum font
+  size that should be used for nested superscripts and fractions. The value 
+  should be between 0 and 1. The size is in releative `em` units 
+  relative to the font size of the `math-field`. The default value is 0, 
+  which allows the `math-field` to use its default sizing logic.
+- If no mathfield is focused the virtual keyboard will dispatch a `keydown`/`keyup`
+  event pair. Add an event listener to the keyboard to receive those events.
+
+## Improvements
+- Improved performance of creation and destruction of mathfields by 50%.
+- Fixed memory and listener leaks. After creating, inserting in the DOM, then 
+  removing over 100,000, the memory is back to its starting point and there
+  are no listeners left (except for those associated with the Virtual Keyboard).
+- Improved behavior of undo/redo. **#1924** works in LaTeX mode. Undo shortcut
+  substitution. Repeated operations (e.g. backspace) are considered a sinle
+  operation for undo/redo purposes.
+- Importing the Compute Engine and MathLive in the same projec should no 
+  longer trigger a conflict.
 
 ## Bug Fixes
 - **#1646** **mhchem**: states of aggregation is now rendered correctly. Added 
@@ -6,6 +123,14 @@
 - When editing a mathfield, after inserting both a superscript and 
   subscript, the subscript would be offset from the superscript.
 - **#1668** Correctly handle `\space`, `~`
+- **#1939** When the parent of the Mathfield is scaled, apply the scaling to 
+  the selection rectangles
+- Fixed parsing of emojis such as 🧑🏻‍🚀
+- The focus outline is no longer displayed when in readonly mode
+- **#1940** New attempt to preserve the focus of mathfields when a window loses,
+  then regains focus (when switching tabs, for example).
+- At certain sizes, the `\left...\right` command did not display the visual
+  indicator that the caret was inside the argument of the command.
 
 
 ## 0.92.1 (2023-04-19)
@@ -451,7 +576,7 @@ MathfieldElement.soundsDirectory = null;
 | `mf.setOptions({inlineShortcuts: ...})`             | `mf.inlineShortcuts = ...`                                                   |
 | `mf.setOptions({keybindings: ...})`                 | `mf.keybindings = ...`                                                       |
 | `mf.setOptions({virtualKeyboardMode: ...})`         | `mf.mathVirtualKeyboardPolicy = ...`                                         |
-| `mf.setOptions({customVirtualKeyboardLayers: ...})` | `mathVirtualKeyboard.layers = ...`                                           |
+| `mf.setOptions({customVirtualKeyboardLayers: ...})` | `mathVirtualKeyboard.layouts.layers = ...`                                           |
 | `mf.setOptions({customVirtualKeyboards: ...})`      | `mathVirtualKeyboard.layouts = ...`                                          |
 | `mf.setOptions({keypressSound: ...})`               | `mathVirtualKeyboard.keypressSound = ...`                                    |
 | `mf.setOptions({keypressVibration: ...})`           | `mathVirtualKeyboard.keypressVibration = ...`                                |

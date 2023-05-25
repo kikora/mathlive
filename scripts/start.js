@@ -13,6 +13,7 @@ context({
     './test/mathfield-states/index.html',
     './test/prompts/index.html',
     './test/playwright-test-page/index.html',
+    './test/playwright-test-page/iframe_test.html',
   ],
   outdir: './dist',
   loader: {

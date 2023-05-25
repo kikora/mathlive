@@ -1,12 +1,8 @@
 /* eslint no-console:0 */
 
-// @ts-ignore-error
-import coreStylesheet from '../../css/core.less';
-
 import { AutoRenderOptions } from '../public/options';
 
-import { inject as injectStylesheet } from '../common/stylesheet';
-import { hashCode } from '../common/hash-code';
+import { injectStylesheet } from '../common/stylesheet';
 
 import '../core/atom';
 import { loadFonts } from '../core/fonts';
@@ -262,9 +258,9 @@ function createMarkupNode(
       mathstyle: mathstyle,
       format: 'html',
     });
-    const element = document.createElement(
-      mathstyle === 'displaystyle' ? 'div' : 'span'
-    );
+    const element = document.createElement('span');
+    element.style.display =
+      mathstyle === 'displaystyle' ? 'flex' : 'inline-flex';
     element.setAttribute('aria-hidden', 'true');
     element.innerHTML = window.MathfieldElement.createHTML(html);
     return element;
@@ -288,7 +284,7 @@ function createAccessibleMarkupPair(
   const markupNode = createMarkupNode(
     latex,
     options,
-    mathstyle ? mathstyle : 'displaystyle',
+    mathstyle ? mathstyle : 'textstyle',
     createNodeOnFailure
   );
   const accessibleContent = options.renderAccessibleContent ?? '';
@@ -433,7 +429,7 @@ function scanElement(
         }
 
         if (textContent) {
-          let style: 'displaystyle' | 'textstyle' = 'displaystyle';
+          let style: 'displaystyle' | 'textstyle' = 'textstyle';
 
           for (const l of scriptNode.type.split(';')) {
             const [key, value] = l.toLowerCase().split('=');
@@ -513,7 +509,7 @@ const DEFAULT_AUTO_RENDER_OPTIONS: AutoRenderOptions = {
 
   asciiMath: {
     delimiters: {
-      display: [
+      inline: [
         ['`', '`'], // ASCII Math delimiters
       ],
     },
@@ -558,12 +554,8 @@ export function autoRenderMathInElement(
     // Load the fonts and inject the stylesheet once to
     // avoid having to do it many times in the case of a `renderMathInDocument()`
     // call.
-    requestAnimationFrame(() => void loadFonts());
-    injectStylesheet(
-      null,
-      coreStylesheet,
-      hashCode(coreStylesheet).toString(36)
-    );
+    void loadFonts();
+    injectStylesheet('core');
 
     scanElement(element, optionsPrivate);
   } catch (error: unknown) {

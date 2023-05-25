@@ -1,9 +1,7 @@
-import type { Atom } from '../core/atom-class';
+import { CreateAtomOptions } from 'core/atom-class';
 import { EncloseAtom, EncloseAtomOptions } from '../core-atoms/enclose';
 
 import { Argument, argAtoms, defineFunction } from './definitions-utils';
-import type { Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
 
 // \enclose, a MathJax extension mapping to the MathML `menclose` tag.
 // The first argument is a comma delimited list of notations, as defined
@@ -11,11 +9,11 @@ import type { GlobalContext } from '../core/types';
 // The second, optional, specifies the style to use for the notations.
 defineFunction('enclose', '{notation:string}[style:string]{body:auto}', {
   createAtom: (
-    command: string,
-    context: GlobalContext,
-    style: Style,
-    args: [string | null, string | null, Argument | null]
-  ): Atom => {
+    atomOptions: CreateAtomOptions<
+      [string | null, string | null, Argument | null]
+    >
+  ) => {
+    const args = atomOptions.args!;
     const options: EncloseAtomOptions = {
       strokeColor: 'currentColor',
       strokeWidth: '',
@@ -25,7 +23,7 @@ defineFunction('enclose', '{notation:string}[style:string]{body:auto}', {
       shadow: 'auto',
       svgStrokeStyle: undefined,
       borderStyle: undefined,
-      style,
+      style: atomOptions.style ?? {},
     };
 
     // Extract info from style string
@@ -69,27 +67,20 @@ defineFunction('enclose', '{notation:string}[style:string]{body:auto}', {
       });
 
     return new EncloseAtom(
-      command,
+      atomOptions.command!,
       argAtoms(args[2]),
       notation,
-      context,
       options
     );
   },
 });
 
 defineFunction('cancel', '{body:auto}', {
-  createAtom: (
-    name: string,
-    context: GlobalContext,
-    style: Style,
-    args: (Argument | null)[]
-  ): Atom =>
+  createAtom: (options) =>
     new EncloseAtom(
-      name,
-      argAtoms(args[0]),
+      options.command!,
+      argAtoms(options.args![0]),
       { updiagonalstrike: true },
-      context,
       {
         strokeColor: 'currentColor',
         strokeWidth: '',
@@ -98,23 +89,17 @@ defineFunction('cancel', '{body:auto}', {
         backgroundcolor: 'transparent',
         padding: 'auto',
         shadow: 'auto',
-        style,
+        style: options.style ?? {},
       }
     ),
 });
 
 defineFunction('bcancel', '{body:auto}', {
-  createAtom: (
-    name: string,
-    context: GlobalContext,
-    style: Style,
-    args: (Argument | null)[]
-  ): Atom =>
+  createAtom: (options) =>
     new EncloseAtom(
-      name,
-      argAtoms(args[0]),
+      options.command!,
+      argAtoms(options.args![0]),
       { downdiagonalstrike: true },
-      context,
       {
         strokeColor: 'currentColor',
         strokeWidth: '',
@@ -123,23 +108,17 @@ defineFunction('bcancel', '{body:auto}', {
         backgroundcolor: 'transparent',
         padding: 'auto',
         shadow: 'auto',
-        style,
+        style: options.style ?? {},
       }
     ),
 });
 
 defineFunction('xcancel', '{body:auto}', {
-  createAtom: (
-    name: string,
-    context: GlobalContext,
-    style: Style,
-    args: (Argument | null)[]
-  ): Atom =>
+  createAtom: (options) =>
     new EncloseAtom(
-      name,
-      argAtoms(args[0]),
+      options.command!,
+      argAtoms(options.args![0]),
       { updiagonalstrike: true, downdiagonalstrike: true },
-      context,
       {
         strokeColor: 'currentColor',
         strokeWidth: '',
@@ -148,7 +127,7 @@ defineFunction('xcancel', '{body:auto}', {
         backgroundcolor: 'transparent',
         padding: 'auto',
         shadow: 'auto',
-        style,
+        style: options.style ?? {},
       }
     ),
 });

@@ -5,6 +5,15 @@
   'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
   sans-serif;
 
+  .ML__container {
+    min-height: auto !important;
+    --_hue: var(--hue, 212);
+    --_placeholder-color: var(--placeholder-color, hsl(var(--_hue), 40%, 49%));
+    --_placeholder-opacity: var(--placeholder-opacity, 0.4);
+    --_text-font-family: var(--text-font-family, @system);
+  }
+  
+
 .ML__sr-only {
   position: absolute;
   width: 1px;
@@ -53,7 +62,7 @@
 
 /* Text mode */
 .ML__text {
-  font-family: var(--text-font-family, @system);
+  font-family: var(--_text-font-family);
   white-space: pre;
 }
 
@@ -217,8 +226,8 @@
   &:after {
     content: '';
     display: block;
-    margin-top: calc(max(-1px, -0.04em));
-    min-height: calc(max(1px, 0.04em));
+    margin-top: ~"max(-1px, -0.04em)";
+    min-height: ~"max(1px, 0.04em)";
     /* Ensure the line is visible when printing even if "turn off background images" is on*/
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -245,20 +254,20 @@
 
 .ML__sqrt-sign {
   display: inline-block;
-  font-family: KaTeX_Main;
   position: relative;
 }
 
 .ML__sqrt-line {
   display: inline-block;
-  height: calc(max(1px, 0.04em));
+  height: ~"max(1px, 0.04em)";
   width: 100%;
 
   &:before {
     content: '';
     display: block;
-    margin-top: calc(max(-1px, -0.04em));
-    min-height: calc(max(1px, 0.04em));
+    margin-top: ~"min(-1px, -0.04em)";
+    // margin-top: -1px;
+    min-height: ~"max(1px, 0.04em)";
     /* Ensure the line is visible when printing even if "turn off background images" is on*/
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -311,14 +320,13 @@
   width: 0;
 }
 
-.ML__accent-vec > span {
+.ML__accent-vec {
   position: relative;
   left: 0.24em;
 }
 
 .ML__mathlive {
   @ptperem: 10; // This value should equal PT_PER_EM om `font-metrics.ts`
-  @nulldelimiterspace: 0.12em;
 
   @thinspace: 0.16667em; // 3mu
   @mediumspace: 0.22222em; // 4mu
@@ -370,7 +378,7 @@
   }
 
   .vlist {
-    display: table-cell;
+    display: table-cell;    // Inside a table-cell, vertical-align aligns the content of the cell, not the cell itself
     vertical-align: bottom;
     position: relative;
 
@@ -488,11 +496,11 @@
     width: 100%;
 
     &:before {
+      content: '';
       border-bottom-style: solid;
-      border-bottom-width: calc(max(1px, 0.04em));
+      border-bottom-width: ~"max(1px, 0.04em)";
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
-        content: '';
       display: block;
     }
 
@@ -501,7 +509,7 @@
       // Since Chrome 62 there are issues rendering sub-pixel borders at 
       // certain zoom levels (90%, 110%). Forcing it to at least one pixels 
       // seems to work around the issue.
-      border-bottom-width: calc(max(1px, 0.04em));
+      border-bottom-width: ~"max(1px, 0.04em)";
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
         content: '';
@@ -583,7 +591,6 @@
   }
 
   .nulldelimiter {
-    width: @nulldelimiterspace;
     display: inline-block;
   }
 
@@ -599,12 +606,6 @@
     }
     &.large-op {
       font-family: KaTeX_Size2;
-    }
-  }
-
-  .accent {
-    > .vlist > span {
-      text-align: center;
     }
   }
 
@@ -659,22 +660,10 @@
   padding: 0;
 }
 
-.ML__composition {
-  background: #fff1c2;
-  color: black;
-  text-decoration: underline var(--caret-color-computed, var(--ML__caret-color));
-}
-
-// @media (prefers-color-scheme: dark) {
-//   .ML__composition {
-//     background: #69571c;
-//     color: white;
-//   }
-// }
 
 .ML__placeholder {
-  color: var(--placeholder-color, var(--ML__placeholder-color));
-  opacity: var(--placeholder-opacity, 0.4);
+  color:  var(--_placeholder-color);
+  opacity: var(--_placeholder-opacity);
   padding-left: 0.4ex;
   padding-right: 0.4ex;
   font-family: @system;
@@ -683,37 +672,49 @@
 .ML__notation {
   position: absolute;
   box-sizing: border-box;
+  line-height: 0;
 }
 
-.ML__container {
-  min-height: auto !important;
+
+/* This class is used to implement the `\mathtip` and `\texttip` commands
+   For UI elements, see `[data-ML__tooltip]`
+*/
+.ML__tooltip-container {
+  position: relative;
+  transform: scale(0); // To override the overflow:hidden
+
+  .ML__tooltip-content {
+    position: fixed;
+    display: inline-table;
+    visibility: hidden;
+    z-index: 2;
+    width: max-content;
+    max-width: 400px;
+    padding: 12px 12px;
+    border-radius: 8px;
+
+    background: #616161; // Grey 700
+    --_selection-color: #fff;
+    color: #fff;
+    box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12),
+      0 3px 1px -2px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    // animation: .150s tooltipFadeOut cubic-bezier(0.4, 0.0, 1, 1) forwards;
+    transition: opacity 0.15s cubic-bezier(0.4, 0, 1, 1);
+
+    .ML__text {
+      white-space: normal; // Make text wrap
+    }
+    .ML__base {
+      display: contents;
+    }
+  }
+  &:hover .ML__tooltip-content {
+    visibility: visible; // Visible triggers the animation...
+    opacity: 1; // ... but we start fully transparent to
+    // give ourselves a delay before showing
+    font-size: 0.75em;
+    transform: scale(1) translate(0, 3em);
+  }
 }
 
-.ML__prompt {
-  border-radius: 2px;
-}
-
-.ML__editablePromptBox {
-  outline: 1px solid #acacac;
-  border-radius: 2px;
-  z-index: -1;
-}
-
-.ML__focusedPromptBox {
-  outline: highlight auto 1px;
-}
-
-.ML__lockedPromptBox {
-  background-color: rgba(142, 142, 141, 0.4);
-  z-index: -1;
-}
-
-.ML__correctPromptBox {
-  outline: 1px solid var(--correct-color, var(--ML__correct-color));
-  box-shadow: 0 0 5px var(--correct-color, var(--ML__correct-color));
-}
-
-.ML__incorrectPromptBox {
-  outline: 1px solid var(--incorrect-color, var(--ML__incorrect-color));
-  box-shadow: 0 0 5px var(--incorrect-color, var(--ML__incorrect-color));
-}

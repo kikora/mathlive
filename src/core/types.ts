@@ -1,8 +1,7 @@
-import {
+import type {
   ArgumentType,
   BoxCSSProperties,
   MacroDefinition,
-  MathstyleName,
   NormalizedMacroDictionary,
   ParseMode,
   Registers,
@@ -11,7 +10,7 @@ import {
 } from '../public/core-types';
 import { Atom } from '../core/atom-class';
 import { Context } from '../core/context';
-import { TokenDefinition } from '../core-definitions/definitions-utils';
+import { FontName } from './font-metrics';
 
 export interface ParseTokensOptions {
   macros: NormalizedMacroDictionary;
@@ -28,42 +27,41 @@ export interface ParseTokensOptions {
 // See http://www.ntg.nl/maps/38/03.pdf for an explanation of the metrics
 // and how they relate to the OpenFont math metrics
 export interface FontMetrics<T = number> {
-  slant: T;
-  space: T;
-  stretch: T;
-  shrink: T;
-  xHeight: T; // sigma 5 = accent base height
-  quad: T;
-  extraSpace: T;
-  num1: T; // sigma 8 = FractionNumeratorDisplayStyleShiftUp
-  num2: T; // sigma 9 = FractionNumeratorShiftUp
-  num3: T; // sigma 10 = StackTopShiftUp
-  denom1: T; // sigma 11 = StackBottomDisplayStyleShiftDown = FractionDenominatorDisplayStyleShiftDown
-  denom2: T; // sigma 12 = StackBottomShiftDown = FractionDenominatorShiftDown
-  sup1: T; //sigma 13 = SuperscriptShiftUp
-  sup2: T;
-  sup3: T; // sigma 15 = SuperscriptShiftUpCramped
-  sub1: T; // sigma 16 = SubscriptShiftDown
-  sub2: T;
-  supDrop: T; // sigma 18 = SuperscriptBaselineDropMax
-  subDrop: T; // sigma 19 = SubscriptBaselineDropMin
-  delim1: T;
-  delim2: T; // sigma 21 = DelimitedSubFormulaMinHeight
-  axisHeight: T; // sigma 22
+  slant: T; // σ1
+  space: T; // σ2
+  stretch: T; // σ3
+  shrink: T; // σ4
+  xHeight: T; // σ5 = accent base height
+  quad: T; // σ6
+  extraSpace: T; // σ7
+  num1: T; // σ8 = FractionNumeratorDisplayStyleShiftUp
+  num2: T; // σ9 = FractionNumeratorShiftUp
+  num3: T; // σ10 = StackTopShiftUp
+  denom1: T; // σ11 = StackBottomDisplayStyleShiftDown = FractionDenominatorDisplayStyleShiftDown
+  denom2: T; // σ12 = StackBottomShiftDown = FractionDenominatorShiftDown
+  sup1: T; //σ13 = SuperscriptShiftUp
+  sup2: T; // σ14
+  sup3: T; // σ15 = SuperscriptShiftUpCramped
+  sub1: T; // σ16 = SubscriptShiftDown
+  sub2: T; // σ17
+  supDrop: T; // σ18 = SuperscriptBaselineDropMax
+  subDrop: T; // σ19 = SubscriptBaselineDropMin
+  delim1: T; // σ20
+  delim2: T; // σ21 = DelimitedSubFormulaMinHeight
+  axisHeight: T; // σ22
 
   // Note: xi14: offset from baseline for superscript TexBook p. 179
   // Note: xi16: offset from baseline for subscript
 
-  // The \sqrt rule width is taken from the height of the surd character.
-  // Since we use the same font at all sizes, this thickness doesn't scale.
-
-  defaultRuleThickness: T; // xi8; cmex7: 0.049
+  defaultRuleThickness: T; // xi8
   bigOpSpacing1: T; // xi9
   bigOpSpacing2: T; // xi10
   bigOpSpacing3: T; // xi11
-  bigOpSpacing4: T; // xi12; cmex7: 0.611
-  bigOpSpacing5: T; // xi13; cmex7: 0.143
+  bigOpSpacing4: T; // xi12
+  bigOpSpacing5: T; // xi13
 
+  // The \sqrt rule width is taken from the height of the surd character.
+  // Since we use the same font at all sizes, this thickness doesn't scale.
   sqrtRuleThickness: T;
 }
 
@@ -78,8 +76,6 @@ export interface FontMetrics<T = number> {
  */
 
 const BOX_TYPE = [
-  '',
-  'chem',
   'ord', // > is an ordinary atom like `x`
   'bin', // > is a binary operation atom like `+`
   'op', // > is a large operator atom like `\sum`
@@ -88,51 +84,52 @@ const BOX_TYPE = [
   'close', // > is a closing atom like `)`
   'punct', // > is a punctuation atom like ‘,’
   'inner', // >  is an inner atom like `\frac12`
-  'spacing',
-  'first',
+  'rad', // for radicals, like `\sqrt2`
   'latex',
   'composition',
   'middle', // A box type used by the `\middle` command
-  'none',
+  'ignore', // A box that should be ignored during inter-box spacing, e.g. sup/sub atoms
+  'lift', // For inter-box spacing, the children of the box should be lifted as
+  // if they were present instead of the box
+  'skip', // A box that only has some horizontal spacing
 ] as const; // The const assertion prevents widening to string[]
 export type BoxType = (typeof BOX_TYPE)[number];
 
 export type BoxOptions = {
+  mode?: ParseMode;
+  type?: BoxType;
+  height?: number;
+  depth?: number;
+  width?: number;
+  maxFontSize?: number;
+  isTight?: boolean;
+  fontFamily?: FontName;
+  letterShapeStyle?: 'tex' | 'french' | 'iso' | 'upright';
+
+  caret?: ParseMode;
+  isSelected?: boolean;
   classes?: string;
   properties?: Partial<Record<BoxCSSProperties, string>>;
   attributes?: Record<string, string>;
-  type?: BoxType;
-  isTight?: boolean;
-  height?: number;
-  depth?: number;
-  maxFontSize?: number;
 
-  newList?: boolean;
-
-  mode?: ParseMode;
   style?: Style; // If a `style` option is provided, a `mode` must also be provided.
-
-  fontFamily?: string;
 };
 
 export interface BoxInterface {
-  // constructor(
-  //   content: null | number | string | Box | (Box | null)[],
-  //   options?: BoxOptions
-  // );
   type: BoxType;
 
+  parent: BoxInterface | undefined;
   children?: BoxInterface[];
-  break: boolean;
   value: string;
 
   classes: string;
 
-  caret: ParseMode;
+  caret?: ParseMode;
   isSelected: boolean;
 
   height: number;
   depth: number;
+  width: number;
   skew: number;
   italic: number;
   maxFontSize: number;
@@ -151,7 +148,7 @@ export interface BoxInterface {
 
   attributes?: Record<string, string>;
 
-  cssProperties: Partial<Record<BoxCSSProperties, string>>;
+  cssProperties?: Partial<Record<BoxCSSProperties, string>>;
 
   set atomID(id: string | undefined);
 
@@ -169,7 +166,6 @@ export interface BoxInterface {
 
   left: number;
   right: number;
-  width: number;
 
   wrap(
     context: ContextInterface,
@@ -187,18 +183,32 @@ export interface BoxInterface {
 export type PrivateStyle = Style & {
   verbatimColor?: string;
   verbatimBackgroundColor?: string;
-  mathStyle?: MathstyleName;
-  mode?: ParseMode;
 };
 
+/**
+ * The `ContextInterface` encapsulates information needed to render atoms. Each
+ * rendering group may create a new `ContextInterface`, linked to its parent.
+ *
+ * Registers are scoped to the current context by default, but global
+ * registers can also be accessed with `\global`:
+ * (https://tex.stackexchange.com/questions/94710/what-is-the-difference-between-local-and-global-in-a-tex-meaning)
+ *
+ */
 export interface ContextInterface {
-  registers: Registers;
+  readonly registers: Registers;
   atomIdsSettings?: {
     overrideID?: string;
     groupNumbers: boolean;
     seed: 'random' | number;
   };
-  renderPlaceholder?: (context: Context) => BoxInterface;
+  renderPlaceholder?: ((context: Context) => BoxInterface) | undefined;
+  readonly smartFence: boolean;
+  readonly letterShapeStyle: 'tex' | 'french' | 'iso' | 'upright';
+  readonly minFontScale: number;
+  readonly placeholderSymbol: string;
+  readonly colorMap: (name: string) => string | undefined;
+  readonly backgroundColorMap: (name: string) => string | undefined;
+  getMacro(token: string): MacroDefinition | null;
 }
 
 export declare function applyStyle(
@@ -206,22 +216,3 @@ export declare function applyStyle(
   box: BoxInterface,
   style: Style
 ): string | null;
-
-/**
- * The Global Context encapsulates information that atoms
- * may require in order to render correctly. Unlike `ContextInterface`, these
- * values do not depend of the location of the atom in the render tree.
- */
-export interface GlobalContext {
-  readonly registers: Registers;
-  readonly smartFence: boolean;
-  readonly letterShapeStyle: 'tex' | 'french' | 'iso' | 'upright' | 'auto';
-  readonly fractionNavigationOrder:
-    | 'numerator-denominator'
-    | 'denominator-numerator';
-  readonly placeholderSymbol: string;
-  colorMap: (name: string) => string | undefined;
-  backgroundColorMap: (name: string) => string | undefined;
-  getDefinition(token: string, parseMode: ParseMode): TokenDefinition | null;
-  getMacro(token: string): MacroDefinition | null;
-}

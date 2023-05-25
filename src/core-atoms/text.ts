@@ -1,5 +1,4 @@
 import type { Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
 
 import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
 import { Box } from '../core/box';
@@ -7,13 +6,9 @@ import { Context } from '../core/context';
 import { charToLatex } from '../core-definitions/definitions-utils';
 
 export class TextAtom extends Atom {
-  constructor(
-    command: string,
-    value: string,
-    style: Style,
-    context: GlobalContext
-  ) {
-    super('text', context, {
+  constructor(command: string, value: string, style: Style) {
+    super({
+      type: 'text',
       command,
       mode: 'text',
       displayContainsHighlight: true,
@@ -23,12 +18,8 @@ export class TextAtom extends Atom {
     this.applyStyle(style);
   }
 
-  static fromJson(json: AtomJson, context: GlobalContext): TextAtom {
-    return new TextAtom(json.command, json.value, json.style, context);
-  }
-
-  toJson(): AtomJson {
-    return super.toJson();
+  static fromJson(json: AtomJson): TextAtom {
+    return new TextAtom(json.command, json.value, json.style);
   }
 
   render(context: Context): Box {
@@ -37,7 +28,7 @@ export class TextAtom extends Atom {
     return result;
   }
 
-  serialize(_options: ToLatexOptions): string {
+  _serialize(_options: ToLatexOptions): string {
     return this.verbatimLatex ?? charToLatex('text', this.value.codePointAt(0));
   }
 }

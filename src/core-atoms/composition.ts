@@ -1,24 +1,16 @@
 import type { ParseMode, Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
 
 import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
 import { Box } from '../core/box';
 import { Context } from '../core/context';
 
 export class CompositionAtom extends Atom {
-  constructor(
-    value: string,
-    context: GlobalContext,
-    options?: { mode: ParseMode }
-  ) {
-    super('composition', context, { mode: options?.mode ?? 'math', value });
+  constructor(value: string, options?: { mode: ParseMode }) {
+    super({ type: 'composition', mode: options?.mode ?? 'math', value });
   }
 
-  static fromJson(
-    json: { [key: string]: any },
-    context: GlobalContext
-  ): CompositionAtom {
-    return new CompositionAtom(json.value, context, json as any);
+  static fromJson(json: { [key: string]: any }): CompositionAtom {
+    return new CompositionAtom(json.value, json as any);
   }
 
   toJson(): AtomJson {
@@ -42,7 +34,7 @@ export class CompositionAtom extends Atom {
     return result;
   }
 
-  serialize(_options: ToLatexOptions): string {
+  _serialize(_options: ToLatexOptions): string {
     return '';
   }
 }

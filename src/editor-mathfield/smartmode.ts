@@ -1,5 +1,5 @@
 import {
-  eventToChar,
+  keyboardEventToChar,
   mightProducePrintableCharacter,
 } from '../editor/keyboard';
 import { contentDidChange } from '../editor-model/listeners';
@@ -38,7 +38,7 @@ function convertLastAtomsToText(
       atom === undefined ||
       atom.mode !== 'math' ||
       !(
-        /mord|textord|mpunct/.test(atom.type) ||
+        (atom.type && /mord|mpunct/.test(atom.type)) ||
         (atom.type === 'mop' && /[a-zA-Z]+/.test(atom.value))
       ) ||
       !atom.hasEmptyBranch('superscript') ||
@@ -89,7 +89,7 @@ function convertLastAtomsToMath(
       atom.value === ' ' ||
       (until && !until(atom));
     if (!done) {
-      data.push(atom.serialize({ defaultMode: 'math' }));
+      data.push(Atom.serialize([atom], { defaultMode: 'math' }));
       atom.mode = 'math';
     }
 
@@ -124,10 +124,10 @@ export function removeIsolatedSpace(model: ModelPrivate): void {
     // We need to adjust the selection after doing some surgery on the atoms list
     // But we don't want to receive selection notification changes
     // which could have a side effect of changing the mode :(
-    const save = model.suppressChangeNotifications;
-    model.suppressChangeNotifications = true;
+    const save = model.silenceNotifications;
+    model.silenceNotifications = true;
     model.position -= 1;
-    model.suppressChangeNotifications = save;
+    model.silenceNotifications = save;
 
     contentDidChange(model, { inputType: 'deleteContent' });
   }
@@ -148,7 +148,7 @@ function getTextBeforePosition(model: ModelPrivate): string {
     done = !(
       atom &&
       (atom.mode === 'text' ||
-        (atom.mode === 'math' && /mord|textord|mpunct/.test(atom.type)))
+        (atom.mode === 'math' && atom.type && /mord|mpunct/.test(atom.type)))
     );
     if (!done) result = atom.value + result;
 
@@ -181,10 +181,10 @@ export function smartMode(
   // (i.e. not an arrow key, etc...)
   if (!evt || !mightProducePrintableCharacter(evt)) return false;
 
-  const c = eventToChar(evt);
+  const c = keyboardEventToChar(evt);
   if (!model.selectionIsCollapsed) {
     // There is a selection
-    if (mathfield.mode === 'text') {
+    if (mathfield.model.mode === 'text') {
       // If the character is '/' or '_' or '^', switch to 'math'
       if (/[/_^]/.test(c)) return true;
     }
@@ -193,7 +193,7 @@ export function smartMode(
   }
 
   const context = getTextBeforePosition(model) + c;
-  if (mathfield.mode === 'text') {
+  if (mathfield.model.mode === 'text') {
     // We're in text mode. Should we switch to math?
     if (keystroke === 'Esc' || /[/\\]/.test(c)) {
       // If this is a command for a fraction,

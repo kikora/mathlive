@@ -5,6 +5,7 @@ import type {
   VirtualKeyboardKeycap,
   VirtualKeyboardLayout,
   VirtualKeyboardLayoutCore,
+  VirtualKeyboardName,
 } from '../public/virtual-keyboard';
 
 import type {
@@ -32,18 +33,12 @@ import {
 } from './utils';
 
 import { hideVariantsPanel, showVariantsPanel } from './variants';
-import {
-  hideEnvironmentPanel,
-  showEnvironmentPanel,
-} from './environmentPopover';
-import { isTabularEnvironment } from '../core-definitions/environment-types';
 import { Style } from '../public/core-types';
-import { ArrayAtom } from '../core-atoms/array';
 
 export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
   private _visible: boolean;
   private _element?: HTMLDivElement;
-  private _dirty: boolean;
+  private _rebuilding: boolean;
   private readonly observer: ResizeObserver;
   private originalContainerBottomPadding: string | null = null;
 
@@ -76,6 +71,8 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
         ?.classList.remove('is-visible');
       newActive.classList.add('is-visible');
     }
+
+    if (this.isShifted) this.render();
   }
 
   private _isCapslock = false;
@@ -83,10 +80,42 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
     return this._isCapslock;
   }
   set isCapslock(val: boolean) {
+    this._element?.classList.toggle('is-caps-lock', this.shiftPressCount === 2);
+
     if (val === this._isCapslock) return;
-    this._element?.classList.toggle('is-caps-lock', val);
+
     this._isCapslock = val;
     this.isShifted = val;
+  }
+
+  /** `0`: not pressed
+   *
+   * `1`: Shift is locked for next char only
+   *
+   * `2`: Shift is locked for all characters
+   */
+  private _shiftPressCount: 0 | 1 | 2 = 0;
+
+  get shiftPressCount(): 0 | 1 | 2 {
+    return this._shiftPressCount;
+  }
+
+  /** Increments `_shiftPressCount` by `1`, and handle the appropriate related behavior for each val */
+  incrementShiftPress(): void {
+    if (++this._shiftPressCount > 2) this.resetShiftPress();
+    else this.isCapslock = true;
+  }
+
+  /** Decrements `_shiftPressCount` by `1`, and sets `isCapslock` to `false` if reaches `0` */
+  decrementShiftPress(): void {
+    this._shiftPressCount = Math.max(--this._shiftPressCount, 0) as 0 | 1 | 2;
+    if (this._shiftPressCount === 0) this.isCapslock = false;
+  }
+
+  /** Resets `_shiftPressCount` to `0`, and sets `isCapslock` to `false` */
+  resetShiftPress(): void {
+    this._shiftPressCount = 0;
+    this.isCapslock = false;
   }
 
   private _isShifted = false;
@@ -170,14 +199,45 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
     this._tabKeycap = typeof value === 'string' ? { label: value } : value;
   }
 
-  private _layouts: 'default' | (string | VirtualKeyboardLayout)[];
-  get layouts(): 'default' | (string | VirtualKeyboardLayout)[] {
+  private _layouts: Readonly<(VirtualKeyboardName | VirtualKeyboardLayout)[]>;
+
+  get layouts(): Readonly<(VirtualKeyboardName | VirtualKeyboardLayout)[]> {
     return this._layouts;
   }
-  set layouts(value: 'default' | (string | VirtualKeyboardLayout)[]) {
-    this._normalizedLayouts = undefined;
-    this._layouts = value;
+  set layouts(
+    value:
+      | 'default'
+      | (VirtualKeyboardName | VirtualKeyboardLayout)[]
+      | Readonly<(VirtualKeyboardName | VirtualKeyboardLayout)[]>
+  ) {
+    this.updateNormalizedLayouts(value);
     this.rebuild();
+  }
+
+  private updateNormalizedLayouts(
+    value:
+      | 'default'
+      | (VirtualKeyboardName | VirtualKeyboardLayout)[]
+      | Readonly<(VirtualKeyboardName | VirtualKeyboardLayout)[]>
+  ): void {
+    const layouts = Array.isArray(value) ? [...value] : [value];
+    const defaultIndex = layouts.findIndex((x) => x === 'default');
+    if (defaultIndex >= 0) {
+      layouts.splice(
+        defaultIndex,
+        1,
+        'numeric',
+        'symbols',
+        'alphabetic',
+        'greek'
+      );
+    }
+
+    this._layouts = Object.freeze<
+      (VirtualKeyboardName | VirtualKeyboardLayout)[]
+    >(layouts as (VirtualKeyboardName | VirtualKeyboardLayout)[]);
+
+    this._normalizedLayouts = layouts.map((x) => normalizeLayout(x));
   }
 
   private _normalizedLayouts:
@@ -188,26 +248,8 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
   get normalizedLayouts(): (VirtualKeyboardLayoutCore & {
     layers: NormalizedVirtualKeyboardLayer[];
   })[] {
-    if (!this._normalizedLayouts) {
-      const layouts = Array.isArray(this._layouts)
-        ? [...this._layouts]
-        : [this._layouts];
-      const defaultIndex = layouts.findIndex((x) => x === 'default');
-      if (defaultIndex >= 0) {
-        layouts.splice(
-          defaultIndex,
-          1,
-          'numeric',
-          'symbols',
-          'alphabetic',
-          'greek'
-        );
-      }
-
-      this._normalizedLayouts = layouts.map((x) => normalizeLayout(x));
-    }
-
-    return this._normalizedLayouts;
+    if (!this._normalizedLayouts) this.updateNormalizedLayouts(this._layouts);
+    return this._normalizedLayouts!;
   }
 
   private _editToolbar: EditToolbarOptions;
@@ -231,9 +273,15 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
   targetOrigin: string;
   originValidator: OriginValidator;
 
-  private static _singleton: VirtualKeyboard;
-  static get singleton(): VirtualKeyboard {
-    if (!this._singleton) this._singleton = new VirtualKeyboard();
+  private static _singleton: VirtualKeyboard | null;
+  static get singleton(): VirtualKeyboard | null {
+    if (this._singleton === undefined) {
+      try {
+        this._singleton = new VirtualKeyboard();
+      } catch (e) {
+        this._singleton = null;
+      }
+    }
     return this._singleton;
   }
 
@@ -247,13 +295,13 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
     this.originValidator = 'none';
 
     this._alphabeticLayout = 'auto';
-    this._layouts = 'default';
+    this._layouts = Object.freeze(['default']);
     this._editToolbar = 'default';
 
     this._container = window.document?.body ?? null;
 
     this._visible = false;
-    this._dirty = false;
+    this._rebuilding = false;
     this.observer = new ResizeObserver((_entries) => {
       this.adjustBoundingRect();
       this.dispatchEvent(new Event('geometrychange'));
@@ -355,28 +403,24 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
     const h = this.boundingRect.height;
     if (this.container === document.body) {
       this._element?.style.setProperty(
-        '--keyboard-height',
+        '--_keyboard-height',
         `calc(${h}px + env(safe-area-inset-bottom, 0))`
       );
       const keyboardHeight = h - 1;
       this.container!.style.paddingBottom = this.originalContainerBottomPadding
         ? `calc(${this.originalContainerBottomPadding} + ${keyboardHeight}px)`
         : `${keyboardHeight}px`;
-    } else this._element?.style.setProperty('--keyboard-height', `${h}px`);
+    } else this._element?.style.setProperty('--_keyboard-height', `${h}px`);
   }
 
   rebuild(): void {
-    if (!this._element) {
-      this._dirty = false;
-      return;
-    }
-    if (this._dirty) return;
+    if (this._rebuilding || !this._element) return;
 
-    this._dirty = true;
+    this._rebuilding = true;
 
     const currentLayerId = this.currentLayer;
     requestAnimationFrame(() => {
-      this._dirty = false;
+      this._rebuilding = false;
 
       // By the time the handler is called, the _element may have been destroyed
       if (this._element) {
@@ -385,12 +429,13 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
       }
       if (this.visible) {
         this.buildAndAttachElement();
-        this.adjustBoundingRect();
 
         // Restore the active keyboard
         this.currentLayer = currentLayerId;
 
         this.render();
+
+        this.adjustBoundingRect();
 
         // Show the keyboard panel
         this._element!.classList.add('is-visible');
@@ -431,6 +476,8 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
     const container = this.container;
     if (!container) return;
 
+    if (!window.mathVirtualKeyboard) return;
+
     // Confirm
     if (!this.stateWillChange(true)) return;
 
@@ -461,6 +508,11 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
       this.currentLayer = this.latentLayer;
 
       this.render();
+
+      this._element?.classList.toggle(
+        'is-caps-lock',
+        this.shiftPressCount === 2
+      );
     }
 
     this._visible = true;
@@ -477,8 +529,8 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
             { once: true }
           );
           this._element.classList.add('is-visible');
+          this.stateChanged();
         }
-        this.stateChanged();
       });
     } else {
       this._element!.classList.add('is-visible');
@@ -588,22 +640,15 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
 
       case 'keydown': {
         const kev = evt as KeyboardEvent;
-
-        // Always update the capslock state. We could have gotten out of sync
-        // (i.e. if the capslock was reset in another window)
-        this.isCapslock = kev.getModifierState('CapsLock');
-
-        if (kev.key === 'Shift') this.isShifted = true;
+        if (kev.key === 'Shift') this.incrementShiftPress();
         break;
       }
       case 'keyup': {
         const kev = evt as KeyboardEvent;
-        if (kev.key === 'Shift') this.isShifted = false;
-
-        // The capslock key is "special" and may not get a keydown or keyup
-        // event, depending on its state. It varies by browser. Bottom line:
-        // to detect changes, check state on both keyup and keydown.
-        this.isCapslock = kev.getModifierState('CapsLock');
+        if (kev.key !== 'Shift' && this._shiftPressCount === 1) {
+          this.isCapslock = false;
+          this._shiftPressCount = 0;
+        }
         break;
       }
     }
@@ -710,15 +755,32 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
       );
       return;
     }
-
-    target?.postMessage(
-      {
-        type: VIRTUAL_KEYBOARD_MESSAGE,
-        action,
-        ...payload,
-      },
-      { targetOrigin: this.targetOrigin }
-    );
+    if (target) {
+      target.postMessage(
+        {
+          type: VIRTUAL_KEYBOARD_MESSAGE,
+          action,
+          ...payload,
+        },
+        { targetOrigin: this.targetOrigin }
+      );
+    } else {
+      if (
+        action === 'execute-command' &&
+        Array.isArray(payload.command) &&
+        payload.command[0] === 'insert'
+      ) {
+        const s = payload.command[1].split('');
+        for (const c of s) {
+          this.dispatchEvent(
+            new KeyboardEvent('keydown', { key: c, bubbles: true })
+          );
+          this.dispatchEvent(
+            new KeyboardEvent('keyup', { key: c, bubbles: true })
+          );
+        }
+      }
+    }
   }
 
   stateWillChange(visible: boolean): boolean {
@@ -772,22 +834,6 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
 
   update(mf: MathfieldProxy): void {
     this._style = mf.style;
-    this.updateEnvironmemtPopover(mf);
-    this.updateToolbar(mf);
-  }
-
-  updateEnvironmemtPopover(mf: MathfieldProxy): void {
-    if (
-      mf.array &&
-      isTabularEnvironment((mf.array as ArrayAtom)?.environmentName) &&
-      mf.boundingRect &&
-      this.visible &&
-      mf.mode === 'math'
-    )
-      showEnvironmentPanel(this, mf.array as ArrayAtom, mf.boundingRect);
-    else hideEnvironmentPanel(this);
-
-    this._style = mf.style;
     this.updateToolbar(mf);
   }
 
@@ -796,7 +842,6 @@ export class VirtualKeyboard implements VirtualKeyboardInterface, EventTarget {
   }
 
   disconnect(): void {
-    hideEnvironmentPanel(this);
     this.connectedMathfieldWindow = undefined;
   }
 

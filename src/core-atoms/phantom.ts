@@ -1,7 +1,4 @@
-import type { Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
-
-import { Atom, AtomJson } from '../core/atom-class';
+import { Atom, AtomJson, CreateAtomOptions } from '../core/atom-class';
 import { Box } from '../core/box';
 import { VBox } from '../core/v-box';
 import { Context } from '../core/context';
@@ -12,28 +9,24 @@ export class PhantomAtom extends Atom {
   private readonly smashDepth: boolean;
   private readonly smashWidth: boolean;
   constructor(
-    command: string,
-    body: Atom[],
-    context: GlobalContext,
-    options: {
+    options: CreateAtomOptions & {
+      body: Atom[];
       smashHeight?: boolean;
       smashDepth?: boolean;
       smashWidth?: boolean;
       isInvisible?: boolean;
-      style: Style;
     }
   ) {
-    super('phantom', context, { command, style: options.style });
+    super({ ...options, type: 'phantom' });
     this.captureSelection = true;
-    this.body = body;
     this.isInvisible = options.isInvisible ?? false;
     this.smashDepth = options.smashDepth ?? false;
     this.smashHeight = options.smashHeight ?? false;
     this.smashWidth = options.smashWidth ?? false;
   }
 
-  static fromJson(json: AtomJson, context: GlobalContext): PhantomAtom {
-    return new PhantomAtom(json.command, json.body, context, json as any);
+  static fromJson(json: AtomJson): PhantomAtom {
+    return new PhantomAtom(json as any);
   }
 
   toJson(): AtomJson {
@@ -46,7 +39,7 @@ export class PhantomAtom extends Atom {
   }
 
   render(context: Context): Box | null {
-    const phantom = new Context(context, { isPhantom: true });
+    const phantom = new Context({ parent: context, isPhantom: true });
 
     if (!this.smashDepth && !this.smashHeight && !this.smashWidth) {
       console.assert(this.isInvisible);
@@ -80,7 +73,7 @@ export class PhantomAtom extends Atom {
     // acting on that height.
     return new VBox(
       { firstBaseline: [{ box: content }] },
-      { type: 'ord' }
+      { type: content.type }
     ).wrap(context);
   }
 }

@@ -1,5 +1,4 @@
 import type { Dimension, Environment } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
 
 import { Atom } from '../core/atom-class';
 import { PlaceholderAtom } from '../core-atoms/placeholder';
@@ -37,42 +36,21 @@ defineEnvironment('center', makeEnvironment);
 defineTabularEnvironment(
   'array',
   '{columns:colspec}',
-  (
-    context: GlobalContext,
-    name: Environment,
-    array: Atom[][][],
-    rowGaps: Dimension[],
-    args
-  ): Atom => {
-    return new ArrayAtom(
-      context,
-      name,
-      defaultContent(context, array),
-      rowGaps,
-      {
-        columns: args[0] as ColumnFormat[],
-        mathstyleName: 'textstyle',
-      }
-    );
+  (name: Environment, array: Atom[][][], rowGaps: Dimension[], args): Atom => {
+    return new ArrayAtom(name, defaultContent(array), rowGaps, {
+      columns: args[0] as ColumnFormat[],
+      mathstyleName: 'textstyle',
+    });
   }
 );
 
 defineTabularEnvironment(
   ['equation', 'equation*', 'subequations'],
   '',
-  (
-    context: GlobalContext,
-    name: Environment,
-    array: Atom[][][],
-    rowGaps: Dimension[]
-  ): Atom => {
-    return new ArrayAtom(
-      context,
-      name,
-      defaultContent(context, array),
-      rowGaps,
-      { columns: [{ align: 'c' }] }
-    );
+  (name: Environment, array: Atom[][][], rowGaps: Dimension[]): Atom => {
+    return new ArrayAtom(name, defaultContent(array), rowGaps, {
+      columns: [{ align: 'c' }],
+    });
   }
 );
 
@@ -188,18 +166,18 @@ function isContentEmpty(array: Atom[][][]) {
   return true;
 }
 
-function defaultContent(context: GlobalContext, array: Atom[][][], count = 1) {
+function defaultContent(array: Atom[][][], count = 1) {
   if (isContentEmpty(array)) {
     return Array(count).fill([
-      [new Atom('first', context), new PlaceholderAtom(context)],
+      [new Atom({ type: 'first' }), new PlaceholderAtom()],
     ]);
   }
   return array.map((row) => {
-    if (row.length === 0) return [[new Atom('first', context)]];
+    if (row.length === 0) return [[new Atom({ type: 'first' })]];
     return row.map((cell) => {
-      if (cell.length === 0) return [new Atom('first', context)];
+      if (cell.length === 0) return [new Atom({ type: 'first' })];
 
-      if (cell[0].type !== 'first') cell.unshift(new Atom('first', context));
+      if (cell[0].type !== 'first') cell.unshift(new Atom({ type: 'first' }));
 
       return cell;
     });
@@ -207,51 +185,49 @@ function defaultContent(context: GlobalContext, array: Atom[][][], count = 1) {
 }
 
 export function makeEnvironment(
-  context: GlobalContext,
   name: Environment,
   content: Atom[][][] = [[[]]],
   rowGaps: Dimension[] = [],
   args: (null | Argument)[] = []
 ): ArrayAtom {
   content = defaultContent(
-    context,
     content,
     ['split', 'align', 'align*', 'aligned', 'eqnarray'].includes(name) ? 2 : 1
   );
   switch (name) {
     case 'math':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'textstyle',
       });
     case 'displaymath':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'textstyle',
       });
     case 'center':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         columns: [{ align: 'c' }],
       });
     case 'multline':
     case 'multline*':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         columns: [{ align: 'm' }],
         leftDelim: '.',
         rightDelim: '.',
       });
     case 'split':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         columns: [{ align: 'r' }, { align: 'l' }],
         minColumns: 2,
       });
     case 'gather':
     case 'gathered':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         columns: [{ gap: 0.25 }, { align: 'c' }, { gap: 0 }],
         // colSeparationType: 'gather',
       });
     case 'pmatrix':
     case 'pmatrix*':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'textstyle',
         leftDelim: '(',
         rightDelim: ')',
@@ -259,7 +235,7 @@ export function makeEnvironment(
       });
     case 'bmatrix':
     case 'bmatrix*':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'textstyle',
         leftDelim: '[',
         rightDelim: ']',
@@ -267,7 +243,7 @@ export function makeEnvironment(
       });
     case 'Bmatrix':
     case 'Bmatrix*':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'textstyle',
         leftDelim: '\\lbrace',
         rightDelim: '\\rbrace',
@@ -275,7 +251,7 @@ export function makeEnvironment(
       });
     case 'vmatrix':
     case 'vmatrix*':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'textstyle',
         leftDelim: '\\vert',
         rightDelim: '\\vert',
@@ -283,7 +259,7 @@ export function makeEnvironment(
       });
     case 'Vmatrix':
     case 'Vmatrix*':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'textstyle',
         leftDelim: '\\Vert',
         rightDelim: '\\Vert',
@@ -293,7 +269,7 @@ export function makeEnvironment(
     case 'matrix*':
       // Specifying a fence, even a null fence,
       // will prevent the insertion of an initial and final gap
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'textstyle',
         leftDelim: '.',
         rightDelim: '.',
@@ -301,7 +277,7 @@ export function makeEnvironment(
       });
     case 'smallmatrix':
     case 'smallmatrix*':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: 'scriptstyle',
         columns: defaultColumns(args?.[0]),
         colSeparationType: 'small',
@@ -309,7 +285,7 @@ export function makeEnvironment(
       });
     case 'cases':
     case 'dcases':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         mathstyleName: name === 'dcases' ? 'displaystyle' : 'textstyle',
         arraystretch: 1.2,
         leftDelim: '\\lbrace',
@@ -317,14 +293,14 @@ export function makeEnvironment(
         columns: [{ align: 'l' }, { gap: 1 }, { align: 'l' }],
       });
     case 'rcases':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         arraystretch: 1.2,
         leftDelim: '.',
         rightDelim: '\\rbrace',
         columns: [{ align: 'l' }, { gap: 1 }, { align: 'l' }],
       });
     case 'lines':
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         // arraystretch: 1.2,
         leftDelim: '.',
         rightDelim: '.',
@@ -352,7 +328,7 @@ export function makeEnvironment(
 
       columns.push({ gap: 0 });
 
-      return new ArrayAtom(context, name, content, rowGaps, {
+      return new ArrayAtom(name, content, rowGaps, {
         arraycolsep: 0,
         columns,
         // colSeparationType: 'align',
@@ -362,7 +338,7 @@ export function makeEnvironment(
   }
 
   // 'math'
-  return new ArrayAtom(context, name, content, rowGaps, {
+  return new ArrayAtom(name, content, rowGaps, {
     mathstyleName: 'textstyle',
   });
 }

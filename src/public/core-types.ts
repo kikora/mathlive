@@ -12,18 +12,15 @@ export type ArgumentType =
       | 'bbox'
       | 'colspec' // Formating of a column in tabular environment, e.g. `"r@{.}l"`
       | 'delim'
-      | 'dimen' // `"25mu"`, `"2pt"`
-      | 'number' // `+/-12.56` (and some more exotic, like `"CAFE`, `'0808`...)
+      | 'value' //  LatexValue
       | 'rest' // `{\foo \textsize ...}` to capture "..."
-      | 'glue' // `"25mu plus 2em minus fiLll"`, `"2pt"`
       | 'string' // The string will end on the first non-literal token, e.g. `<}>`
       | 'balanced-string' // Delimiter is a balanced closing brace
       | 'expression' // A literal, or command with arguments, not enclosed in braces
       | 'auto'
     );
 
-// The 'special' tokens must be of length > 1 to distinguish
-// them from literals.
+// The 'special' tokens are:
 // '<space>': whitespace
 // '<$$>'   : display math mode shift
 // '<$>'    : inline math mode shift
@@ -32,7 +29,7 @@ export type ArgumentType =
 // '#0'-'#9': argument
 // '#?'     : placeholder
 // '\' + ([a-zA-Z\*]+)|([^a-zAz\*])  : command
-// other (length = 1)   : literal
+// others: literal (not that length may be > 1, e.g. emoji)
 //  See: [TeX:289](http://tug.org/texlive/devsrc/Build/source/texk/web2c/tex.web)
 export type Token = string;
 
@@ -99,27 +96,30 @@ export type ErrorListener<T = ParserErrorCode> = (
 /**
  * Variants indicate a stylistic alternate for some characters.
  *
- * Typically, those are controlled with explicit commands, such as `\mathbb{}` or
- * `\mathfrak{}`. This type is used with the [[`applyStyle`]] method to change
- * the styling of a range of selected characters.
+ * Typically, those are controlled with explicit commands, such as
+ * `\mathbb{}` or `\mathfrak{}`. This type is used with the
+ * [[`applyStyle`]] method to change the styling of a range of
+ * selected characters.
  *
  * In mathematical notation these variants are used not only for visual
  * presentation, but they may have semantic significance.
  *
- * For example, the set ℂ should not be confused with the physical unit 𝖢 (Coulomb).
+ * For example,
+ * - the set ℂ should not be confused with
+ * - the physical unit 𝖢 (Coulomb).
  *
  * When rendered, these variants can map to some built-in fonts.
+ *
  * LaTeX supports a limited set of characters. However, MathLive will
- * map characters not supported by LaTeX  fonts(double-stuck variant for digits
+ * map characters not supported by LaTeX  fonts (double-stuck variant for digits
  * for example) to a Unicode character (see [Mathematical Alphanumeric Symbols on Wikipedia](https://en.wikipedia.org/wiki/Mathematical_Alphanumeric_Symbols) ).
  *
- * `normal` is a synthetic variant that maps either to `main` (roman) or
+ * `normal` is a synthetic variant that maps either to `main` (upright) or
  * `math` (italic) depending on the symbol and the `letterShapeStyle`.
  *
  * The `math` variant has italic characters as well as slightly different
  * letter shape and spacing (a bit more space after the "f" for example), so
- * it's not completely equivalent to a `main` variant with `italic` variant style
- * applied.
+ * it's not equivalent to a `main` variant with `italic` variant style applied.
  *
  * **See Also**
  * * [[`Style`]]
@@ -142,14 +142,14 @@ export type Variant =
  * Note that these stylistic variations support a limited set of characters,
  * typically just uppercase and lowercase letters, and digits 0-9 in some cases.
  *
-    | variant            | `up`       | `bold`       | `italic` | `bolditalic` |
-    | ------------------ | ---        | ---          | ---      | --- |
-    | `normal`           | ABCabc012  | 𝐀𝐁𝐂𝐚𝐛𝐜𝟎𝟏𝟐    | 𝐴𝐵𝐶𝑎𝑏𝑐   | 𝑨𝑩𝑪𝒂𝒃𝒄  |
-    | `double-struck`    | 𝔸𝔹ℂ𝕒𝕓𝕔𝟘𝟙𝟚  | n/a          | n/a      | n/a  |
-    | `calligraphic`     | 𝒜ℬ𝒞𝒶𝒷𝒸   | 𝓐𝓑𝓒𝓪𝓫𝓬      | n/a      | n/a  |
-    | `fraktur`          | 𝔄𝔅ℭ𝔞𝔟𝔠     | 𝕬𝕭𝕮𝖆𝖇𝖈       | n/a      | n/a  |
-    | `sans-serif`       | 𝖠𝖡𝖢𝖺𝖻𝖼𝟢𝟣𝟤   | 𝗔𝗕𝗖𝗮𝗯𝗰𝟬𝟭𝟮    | 𝘈𝘉𝘊𝘢𝘣𝘤    | 𝘼𝘽𝘾𝙖𝙗𝙘  |
-    | `monospace`        | 𝙰𝙱𝙲𝚊𝚋𝚌     | n/a          | n/a      | n/a  |
+| variant            | `up`       | `bold`       | `italic` | `bolditalic` |
+| ------------------ | ---        | ---          | ---      | --- |
+| `normal`    | ABCabc012 | 𝐀𝐁𝐂𝐚𝐛𝐜𝟎𝟏𝟐  | 𝐴𝐵𝐶𝑎𝑏𝑐  |𝑨𝑩𝑪𝒂𝒃𝒄  |
+| `double-struck`    | 𝔸𝔹ℂ𝕒𝕓𝕔𝟘𝟙𝟚  | n/a          | n/a      | n/a  |
+| `calligraphic`     | 𝒜ℬ𝒞𝒶𝒷𝒸   | 𝓐𝓑𝓒𝓪𝓫𝓬      | n/a      | n/a  |
+| `fraktur`          | 𝔄𝔅ℭ𝔞𝔟𝔠     | 𝕬𝕭𝕮𝖆𝖇𝖈       | n/a      | n/a  |
+| `sans-serif`| 𝖠𝖡𝖢𝖺𝖻𝖼𝟢𝟣𝟤 | 𝗔𝗕𝗖𝗮𝗯𝗰𝟬𝟭𝟮 | 𝘈𝘉𝘊𝘢𝘣𝘤 | 𝘼𝘽𝘾𝙖𝙗𝙘  |
+| `monospace`        | 𝙰𝙱𝙲𝚊𝚋𝚌     | n/a          | n/a      | n/a  |
 
  */
 export type VariantStyle = 'up' | 'bold' | 'italic' | 'bolditalic' | '';
@@ -157,6 +157,8 @@ export type VariantStyle = 'up' | 'bold' | 'italic' | 'bolditalic' | '';
 export type FontShape = 'auto' | 'n' | 'it' | 'sl' | 'sc' | '';
 
 export type FontSeries = 'auto' | 'm' | 'b' | 'l' | '';
+
+export type FontFamily = 'none' | 'roman' | 'monospace' | 'sans-serif';
 
 export type FontSize = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
@@ -173,15 +175,19 @@ export type FontSize = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
  */
 
 export interface Style {
+  // For text and math mode:
   color?: string;
   backgroundColor?: string;
+  fontSize?: FontSize | 'auto'; // In TeX, fontSize only applies to text mode
+
+  // For math mode:
   variant?: Variant;
   variantStyle?: VariantStyle;
-  fontFamily?: string;
+
+  // For text mode:
+  fontFamily?: FontFamily;
   fontShape?: FontShape;
   fontSeries?: FontSeries;
-  fontSize?: FontSize | 'auto';
-  letterShapeStyle?: 'tex' | 'french' | 'iso' | 'upright' | 'auto';
 }
 /**
  * **See Also**
@@ -193,13 +199,16 @@ export type MacroDefinition = {
   /** Definition of the macro as a LaTeX expression */
   def: string;
   args?: number;
-  expand?: boolean;
   captureSelection?: boolean;
+  // If false, even if `expandMacro` is true, do not expand.
+  expand?: boolean;
 };
 
 export type MacroPackageDefinition = {
   package: Record<string, string | MacroDefinition>;
-  expand?: boolean;
+  // If `primitive` is true, the macro in this package are not expanded,
+  // event when `expandMacro` is true.
+  primitive?: boolean;
   captureSelection?: boolean;
 };
 
@@ -234,14 +243,66 @@ export type DimensionUnit =
 
 /**
  * A dimension is used to specify the size of things
- *
  */
 export type Dimension = {
   dimension: number;
   unit?: DimensionUnit; // If missing, assumes 'pt'
 };
 
-export type RegisterValue = Dimension | Glue | number | string;
+/**
+ * A LaTeX expression represent a sequence of tokens that can be evaluated to
+ * a value, such as a dimension.
+ */
+export type LatexValue = { relax?: boolean } & (
+  | Dimension
+  | Glue
+  | {
+      string: string;
+    }
+  | {
+      // For example "15"
+      number: number;
+      base?: 'decimal' | 'octal' | 'hexadecimal' | 'alpha'; // Default: 'decimal'
+    }
+  | {
+      // Reference to a register
+      register: string;
+      factor?: number; // as in `2\thinmuskip` (default: 1)
+      global?: boolean; // as in `\global\foo` (default: false)
+    }
+);
+// | {
+//     // Converts an expression to a sequence of tokens
+//     type: 'the';
+//     // \the<register> (a string representation of the register)
+//     // \the<symbol-token> -> codepoint of this token (as a string)
+//     // \the\font -> control sequence for the current font (not a string)
+//     value: string; // Register or symbol (e.g. \alpha)
+//   }
+// | {
+//     // Addition: change the value of the lhs register
+//     type: 'advance';
+//     lhs: string;
+//     rhs: LatexValue;
+//   }
+// | {
+//     // Multiplication: change the value of the lhs register
+//     type: 'multiply';
+//     lhs: string;
+//     rhs: number;
+//   }
+// | {
+//     // Division: change the value of the lhs register
+//     type: 'divide';
+//     lhs: string;
+//     rhs: number;
+//   }
+// | {
+//     // \register=<value>
+//     type: 'assignment';
+//     register: string;
+//     value: LatexValue;
+//   }
 
 /**
  * TeX registers represent 'variables' and 'constants'.
@@ -258,7 +319,7 @@ export type RegisterValue = Dimension | Glue | number | string;
  * - `delimitershortfall`
  * - `jot`
  */
-export type Registers = Record<string, RegisterValue>;
+export type Registers = Record<string, number | string | LatexValue>;
 
 /**
  * A dictionary of LaTeX macros to be used to interpret and render the content.
@@ -295,17 +356,18 @@ export type BoxCSSProperties =
   | 'display'
   | 'font-family'
   | 'left'
-  | 'font-size'
   | 'height'
   | 'line-height'
-  | 'margin'
   | 'margin-top'
   | 'margin-left'
   | 'margin-right'
   | 'opacity'
   | 'padding'
+  | 'padding-left'
+  | 'padding-right'
   | 'position'
   | 'top'
+  | 'bottom'
   | 'vertical-align'
   | 'width'
   | 'z-index';

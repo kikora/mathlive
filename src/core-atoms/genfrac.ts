@@ -1,13 +1,11 @@
 import type { MathstyleName, Style } from '../public/core-types';
-import type { GlobalContext } from '../core/types';
 
-import { Atom, AtomJson, ToLatexOptions } from '../core/atom-class';
+import { Atom, AtomJson } from '../core/atom-class';
 import { Box } from '../core/box';
 import { VBox } from '../core/v-box';
 import { makeCustomSizedDelim, makeNullDelimiter } from '../core/delimiters';
 import { Context } from '../core/context';
 import { AXIS_HEIGHT } from '../core/font-metrics';
-import { latexCommand } from '../core/tokenizer';
 
 export type GenfracOptions = {
   continuousFraction?: boolean;
@@ -17,8 +15,8 @@ export type GenfracOptions = {
   rightDelim?: string;
   hasBarLine?: boolean;
   mathstyleName?: MathstyleName;
+  fractionNavigationOrder?: 'numerator-denominator' | 'denominator-numerator';
   style?: Style;
-  serialize?: (atom: GenfracAtom, options: ToLatexOptions) => string;
 };
 
 /**
@@ -40,18 +38,14 @@ export class GenfracAtom extends Atom {
   private readonly numerPrefix?: string;
   private readonly denomPrefix?: string;
   private readonly mathstyleName?: MathstyleName;
+  private readonly fractionNavigationOrder?:
+    | 'numerator-denominator'
+    | 'denominator-numerator';
 
-  constructor(
-    command: string,
-    above: Atom[],
-    below: Atom[],
-    context: GlobalContext,
-    options: GenfracOptions
-  ) {
-    super('genfrac', context, {
-      style: options.style,
-      command,
-      serialize: options.serialize,
+  constructor(above: Atom[], below: Atom[], options: GenfracOptions) {
+    super({
+      ...options,
+      type: 'genfrac',
       displayContainsHighlight: true,
     });
     this.above = above;
@@ -63,14 +57,13 @@ export class GenfracAtom extends Atom {
     this.mathstyleName = options?.mathstyleName;
     this.leftDelim = options?.leftDelim;
     this.rightDelim = options?.rightDelim;
+    this.fractionNavigationOrder = options?.fractionNavigationOrder;
   }
 
-  static fromJson(json: AtomJson, context: GlobalContext): GenfracAtom {
+  static fromJson(json: AtomJson): GenfracAtom {
     return new GenfracAtom(
-      json.command,
       json.above,
       json.below,
-      context,
       json as any as GenfracOptions
     );
   }
@@ -84,15 +77,9 @@ export class GenfracAtom extends Atom {
     if (this.rightDelim) options.rightDelim = this.rightDelim;
     if (!this.hasBarLine) options.hasBarLine = false;
     if (this.mathstyleName) options.mathstyleName = this.mathstyleName;
+    if (this.fractionNavigationOrder)
+      options.fractionNavigationOrder = this.fractionNavigationOrder;
     return { ...super.toJson(), ...options };
-  }
-
-  serialize(options: ToLatexOptions): string {
-    return latexCommand(
-      this.command,
-      this.aboveToLatex(options),
-      this.belowToLatex(options)
-    );
   }
 
   // The order of the children, which is used for keyboard navigation order,
@@ -101,21 +88,21 @@ export class GenfracAtom extends Atom {
     if (this._children) return this._children;
 
     const result: Atom[] = [];
-    if (this.context.fractionNavigationOrder === 'numerator-denominator') {
-      for (const x of this.above!) {
+    if (this.fractionNavigationOrder === 'denominator-numerator') {
+      for (const x of this.below!) {
         result.push(...x.children);
         result.push(x);
       }
-      for (const x of this.below!) {
+      for (const x of this.above!) {
         result.push(...x.children);
         result.push(x);
       }
     } else {
-      for (const x of this.below!) {
+      for (const x of this.above!) {
         result.push(...x.children);
         result.push(x);
       }
-      for (const x of this.above!) {
+      for (const x of this.below!) {
         result.push(...x.children);
         result.push(x);
       }
@@ -126,34 +113,41 @@ export class GenfracAtom extends Atom {
   }
 
   render(context: Context): Box | null {
-    const fracContext = new Context(context, this.style, this.mathstyleName);
+    const fracContext = new Context(
+      { parent: context, mathstyle: this.mathstyleName },
+      this.style
+    );
     const metrics = fracContext.metrics;
 
     const numContext = new Context(
-      fracContext,
-      this.style,
-      this.continuousFraction ? '' : 'numerator'
+      {
+        parent: fracContext,
+        mathstyle: this.continuousFraction ? '' : 'numerator',
+      },
+      this.style
     );
     const numerBox = this.numerPrefix
       ? new Box(
           [new Box(this.numerPrefix), Atom.createBox(numContext, this.above)],
-          { isTight: numContext.isTight, newList: true }
+          { isTight: numContext.isTight, type: 'ignore' }
         )
-      : Atom.createBox(numContext, this.above, { newList: true }) ??
-        new Box(null, { newList: true });
+      : Atom.createBox(numContext, this.above, { type: 'ignore' }) ??
+        new Box(null, { type: 'ignore' });
 
     const denomContext = new Context(
-      fracContext,
-      this.style,
-      this.continuousFraction ? '' : 'denominator'
+      {
+        parent: fracContext,
+        mathstyle: this.continuousFraction ? '' : 'denominator',
+      },
+      this.style
     );
     const denomBox = this.denomPrefix
       ? new Box([
           new Box(this.denomPrefix),
-          Atom.createBox(denomContext, this.below, { newList: true }),
+          Atom.createBox(denomContext, this.below, { type: 'ignore' }),
         ])
-      : Atom.createBox(denomContext, this.below, { newList: true }) ??
-        new Box(null, { newList: true });
+      : Atom.createBox(denomContext, this.below, { type: 'ignore' }) ??
+        new Box(null, { type: 'ignore' });
 
     const ruleWidth = this.hasBarLine ? metrics.defaultRuleThickness : 0;
 
@@ -168,19 +162,19 @@ export class GenfracAtom extends Atom {
     let clearance = 0;
     let denomShift: number;
     if (fracContext.isDisplayStyle) {
-      numerShift = metrics.num1; // Set u ← σ8
+      numerShift = numContext.metrics.num1; // Set u ← σ8
       clearance = ruleWidth > 0 ? 3 * ruleWidth : 7 * ruleWidth;
-      denomShift = metrics.denom1; // V ← σ11
+      denomShift = denomContext.metrics.denom1; // V ← σ11
     } else {
       if (ruleWidth > 0) {
-        numerShift = metrics.num2; // U ← σ9
+        numerShift = numContext.metrics.num2; // U ← σ9
         clearance = ruleWidth; //  Φ ← θ
       } else {
-        numerShift = metrics.num3; // U ← σ10
-        clearance = 3 * ruleWidth; // Φ ← 3 ξ8
+        numerShift = numContext.metrics.num3; // U ← σ10
+        clearance = 3 * metrics.defaultRuleThickness; // Φ ← 3 ξ8
       }
 
-      denomShift = metrics.denom2; // V ← σ12
+      denomShift = denomContext.metrics.denom2; // V ← σ12
     }
 
     const classes: string[] = [];
@@ -239,7 +233,7 @@ export class GenfracAtom extends Atom {
             shift: denomShift,
             classes: [...classes, 'ML__center'],
           },
-          { box: fracLine, shift: -denomLine + ruleWidth / 2, classes },
+          { box: fracLine, shift: -denomLine, classes },
           {
             box: numerBox,
             shift: -numerShift,
@@ -254,8 +248,6 @@ export class GenfracAtom extends Atom {
       ? metrics.delim1
       : metrics.delim2;
 
-    const selectClasses = this.isSelected ? ' ML__selected' : '';
-
     // Optional delimiters
     const leftDelim = this.leftDelim
       ? this.bind(
@@ -266,7 +258,7 @@ export class GenfracAtom extends Atom {
             delimSize,
             true,
             context,
-            { style: this.style, mode: this.mode, classes: selectClasses }
+            { style: this.style, mode: this.mode, isSelected: this.isSelected }
           )
         )
       : makeNullDelimiter(fracContext, 'open');
@@ -286,7 +278,7 @@ export class GenfracAtom extends Atom {
           delimSize,
           true,
           context,
-          { style: this.style, mode: this.mode, classes: selectClasses }
+          { style: this.style, mode: this.mode, isSelected: this.isSelected }
         )
       );
     }

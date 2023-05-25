@@ -1,6 +1,4 @@
-/// <reference path="cortex-compute-engine.d.ts" />
-
-import { Selector } from './commands';
+import type { Selector } from './commands';
 import type {
   LatexSyntaxError,
   MacroDictionary,
@@ -8,7 +6,7 @@ import type {
   Registers,
   Style,
 } from './core-types';
-import {
+import type {
   InsertOptions,
   OutputFormat,
   Offset,
@@ -16,7 +14,7 @@ import {
   Selection,
   Mathfield,
 } from './mathfield';
-import {
+import type {
   InlineShortcutDefinitions,
   Keybinding,
   MathfieldOptions,
@@ -40,6 +38,7 @@ import { defaultReadAloudHook } from '../editor/speech-read-aloud';
 import type { ComputeEngine } from '@cortex-js/compute-engine';
 
 import { l10n } from '../core/l10n';
+import { getStylesheet } from 'common/stylesheet';
 
 export declare type Expression =
   | number
@@ -147,25 +146,6 @@ declare global {
 }
 
 //
-// Note: the `position: relative` is required to fix https://github.com/arnog/mathlive/issues/971
-//
-
-const MATHFIELD_TEMPLATE = isBrowser()
-  ? document.createElement('template')
-  : null;
-if (MATHFIELD_TEMPLATE) {
-  MATHFIELD_TEMPLATE.innerHTML = `<style>
-  :host { display: inline-block; background-color: field; color: fieldtext; border-width: 1px; border-style: solid; border-color: #acacac; border-radius: 2px; padding:4px; pointer-events: none;}
-  :host([hidden]) { display: none; }
-  :host([disabled]), :host([disabled]:focus), :host([disabled]:focus-within) { outline: none; opacity:  .5; }
-  :host(:focus), :host(:focus-within) {
-    outline: Highlight auto 1px;    /* For Firefox */
-    outline: -webkit-focus-ring-color auto 1px;
-  }
-  </style>
-  <span style="pointer-events:auto"></span><slot style="display:none"></slot>`;
-}
-//
 // Deferred State
 //
 // Operations that modify the state of the mathfield before it has been
@@ -191,6 +171,7 @@ export interface MathfieldElementAttributes {
   [key: string]: unknown;
   'default-mode': string;
   'letter-shape-style': string;
+  'min-font-scale': number;
   'popover-policy': string;
   /**
    * The LaTeX string to insert when the spacebar is pressed (on the physical or
@@ -480,6 +461,7 @@ const DEPRECATED_OPTIONS = {
  * | `disabled` | `mf.disabled` |
  * | `default-mode` | `mf.defaultMode` |
  * | `letter-shape-style` | `mf.letterShapeStyle` |
+ * | `min-font-scale` | `mf.minFontScale` |
  * | `popover-policy` | `mf.popoverPolicy` |
  * | `math-mode-space` | `mf.mathModeSpace` |
  * | `read-only` | `mf.readOnly` |
@@ -544,7 +526,8 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
     return isElementInternalsSupported();
   }
   /**
-   * Private lifecycle hooks
+   * Private lifecycle hooks.
+   * If adding a 'boolean' attribute, add its default value to getOptionsFromAttributes
    * @internal
    */
   static get optionsAttributes(): Record<
@@ -554,6 +537,7 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
     return {
       'default-mode': 'string',
       'letter-shape-style': 'string',
+      'min-font-scale': 'number',
       'popover-policy': 'string',
 
       'math-mode-space': 'string',
@@ -625,8 +609,10 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
     return this._fontsDirectory;
   }
   static set fontsDirectory(value: string | null) {
-    this._fontsDirectory = value;
-    reloadFonts();
+    if (value !== this._fontsDirectory) {
+      this._fontsDirectory = value;
+      reloadFonts();
+    }
   }
   static _fontsDirectory: string | null = './fonts';
 
@@ -1029,17 +1015,29 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
       return;
 
     // Fetch the audio buffer
-    const response = await fetch(
-      await resolveUrl(`${soundsDirectory}/${soundFile}`)
-    );
-    const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-    this.audioBuffers[sound] = audioBuffer;
+    try {
+      const response = await fetch(
+        await resolveUrl(`${soundsDirectory}/${soundFile}`)
+      );
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      this.audioBuffers[sound] = audioBuffer;
+    } catch {}
   }
 
   static async playSound(
     name: 'keypress' | 'spacebar' | 'delete' | 'plonk' | 'return'
   ): Promise<void> {
+    // According to MDN:
+    // https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/state
+    //In iOS Safari, when a user leaves the page (e.g. switches tabs, minimizes the browser, or turns off the screen) the audio context's state changes to "interrupted" and needs to be resumed
+
+    if (
+      this.audioContext.state === 'suspended' ||
+      this.audioContext.state === ('interrupted' as AudioContextState)
+    )
+      await this.audioContext.resume();
+
     if (!this.audioBuffers[name]) await this.loadSound(name);
     if (!this.audioBuffers[name]) return;
 
@@ -1057,12 +1055,6 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
 
   /** @internal */
   private _mathfield: null | MathfieldPrivate;
-  // The original text content of the slot.
-  // Recorded at construction to avoid reacting to it if a `slotchange` event
-  // gets fired as part of the construction (different browsers behave
-  // differently).
-  /** @internal */
-  private _slotValue: string;
 
   /** @internal
    * Supported by some browser: allows some (static) attributes to be set
@@ -1112,7 +1104,7 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
               `Option \`${key}\` cannot be used as a constructor option. Use ${DEPRECATED_OPTIONS[key]}`
             );
           }
-        } else warnings.push(`Unexpected option \`${key}\``);
+        }
       }
 
       if (warnings.length > 0) {
@@ -1139,15 +1131,13 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
     }
 
     this.attachShadow({ mode: 'open', delegatesFocus: true });
-    this.shadowRoot!.append(MATHFIELD_TEMPLATE!.content.cloneNode(true));
-
-    const slot =
-      this.shadowRoot!.querySelector<HTMLSlotElement>('slot:not([name])');
-    this._slotValue = slot!
-      .assignedNodes()
-      .map((x) => (x.nodeType === 3 ? x.textContent : ''))
-      .join('')
-      .trim();
+    this.shadowRoot!.adoptedStyleSheets = [
+      getStylesheet('core'),
+      getStylesheet('mathfield'),
+      getStylesheet('mathfield-element'),
+    ];
+    this.shadowRoot!.innerHTML = `<span style="pointer-events:auto"></span><slot style="display:none"></slot>`;
+    // this.shadowRoot!.append(MATHFIELD_TEMPLATE!.content.cloneNode(true));
 
     // Record the (optional) configuration options, as a deferred state
     if (options) this._setOptions(options);
@@ -1195,21 +1185,6 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
     return this._mathfield?.getPrompts(filter) ?? [];
   }
 
-  addEventListener<K extends keyof HTMLElementEventMap>(
-    type: K,
-    listener: (this: MathfieldElement, ev: HTMLElementEventMap[K]) => any,
-    options?: boolean | AddEventListenerOptions
-  ): void {
-    return super.addEventListener(type, listener, options);
-  }
-  removeEventListener<K extends keyof HTMLElementEventMap>(
-    type: K,
-    listener: (this: MathfieldElement, ev: HTMLElementEventMap[K]) => any,
-    options?: boolean | EventListenerOptions
-  ): void {
-    super.removeEventListener(type, listener, options);
-  }
-
   get form(): HTMLFormElement | null {
     return this._internals?.['form'];
   }
@@ -1223,12 +1198,12 @@ export class MathfieldElement extends HTMLElement implements Mathfield {
   }
 
   get mode(): ParseMode {
-    return this._mathfield?.mode ?? 'math';
+    return this._mathfield?.model.mode ?? 'math';
   }
 
   set mode(value: ParseMode) {
     if (!this._mathfield) return;
-    this._mathfield.mode = value;
+    this._mathfield.model.mode = value;
   }
 
   /**
@@ -1285,10 +1260,15 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
     if (this._mathfield) return getOptions(this._mathfield.options, keys);
 
     if (!gDeferredState.has(this)) return null;
-    return getOptions(
-      updateOptions(getDefaultOptions(), gDeferredState.get(this)!.options),
-      keys
-    );
+    return {
+      ...getOptions(
+        {
+          ...getDefaultOptions(),
+          ...updateOptions(gDeferredState.get(this)!.options),
+        },
+        keys
+      ),
+    };
   }
 
   /**
@@ -1315,7 +1295,10 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
 
     if (!gDeferredState.has(this)) return null;
     return getOptions(
-      updateOptions(getDefaultOptions(), gDeferredState.get(this)!.options),
+      {
+        ...getDefaultOptions(),
+        ...updateOptions(gDeferredState.get(this)!.options),
+      },
       keys
     );
   }
@@ -1485,7 +1468,7 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
    */
   setValue(value?: string, options?: InsertOptions): void {
     if (this._mathfield && value !== undefined) {
-      if (!options) options = { suppressChangeNotifications: true };
+      options ??= { silenceNotifications: true, mode: 'math' };
       this._mathfield.setValue(value, options);
       return;
     }
@@ -1663,29 +1646,22 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
     return this._mathfield.canRedo();
   }
 
+  handleEvent(evt: Event): void {
+    if (evt.type === 'pointerdown') this.onPointerDown();
+    if (evt.type === 'focus') this._mathfield?.focus();
+    if (evt.type === 'blur') this._mathfield?.blur();
+  }
+
   /**
    * Custom elements lifecycle hooks
    * @internal
    */
   connectedCallback(): void {
-    // Load the fonts
-    requestAnimationFrame(() => void loadFonts());
+    this.shadowRoot!.host.addEventListener('pointerdown', this, true);
 
-    this.shadowRoot!.host.addEventListener(
-      'pointerdown',
-      () => this.onPointerDown(),
-      true
-    );
-    this.shadowRoot!.host.addEventListener(
-      'focus',
-      () => this._mathfield?.focus(),
-      true
-    );
-    this.shadowRoot!.host.addEventListener(
-      'blur',
-      () => this._mathfield?.blur(),
-      true
-    );
+    // Listen for an element *inside* the mathfield to get focus, e.g. the virtual keyboard toggle
+    this.shadowRoot!.host.addEventListener('focus', this, true);
+    this.shadowRoot!.host.addEventListener('blur', this, true);
 
     if (!isElementInternalsSupported()) {
       if (!this.hasAttribute('role')) this.setAttribute('role', 'math');
@@ -1755,26 +1731,20 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
       );
     }
 
-    slot!.addEventListener('slotchange', (event) => {
-      if (event.target !== slot) return;
-      const value = slot!
-        .assignedNodes()
-        .map((x) => (x.nodeType === 3 ? x.textContent : ''))
-        .join('')
-        .trim();
-      if (value === this._slotValue) return;
-      if (!this._mathfield) this.value = value;
-      else {
-        // Don't suppress notification changes. We need to know
-        // if the value has changed indirectly through slot manipulation
-        this._mathfield.setValue(value);
-      }
+    // Notify listeners that we're mounted and ready
+    window.queueMicrotask(() => {
+      if (!this.isConnected) return;
+      this.dispatchEvent(
+        new Event('mount', {
+          cancelable: false,
+          bubbles: true,
+          composed: true,
+        })
+      );
     });
 
-    // Notify listeners that we're mounted and ready
-    this.dispatchEvent(
-      new Event('mount', { cancelable: false, bubbles: true, composed: true })
-    );
+    // Load the fonts
+    void loadFonts();
   }
 
   /**
@@ -1782,12 +1752,20 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
    * @internal
    */
   disconnectedCallback(): void {
-    // Notify listeners that we're about to be unmounted
-    this.dispatchEvent(
-      new Event('unmount', { cancelable: false, bubbles: true, composed: true })
-    );
+    this.shadowRoot!.host.removeEventListener('pointerdown', this, true);
 
     if (!this._mathfield) return;
+
+    window.queueMicrotask(() =>
+      // Notify listeners that we have been unmounted
+      this.dispatchEvent(
+        new Event('unmount', {
+          cancelable: false,
+          bubbles: true,
+          composed: true,
+        })
+      )
+    );
 
     // Save the state (in case the element gets reconnected later)
     const options = getOptions(
@@ -1956,6 +1934,13 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
   }
   set letterShapeStyle(value: 'auto' | 'tex' | 'iso' | 'french' | 'upright') {
     this._setOptions({ letterShapeStyle: value });
+  }
+
+  get minFontScale(): number {
+    return this._getOption('minFontScale');
+  }
+  set minFontScale(value: number) {
+    this._setOptions({ minFontScale: value });
   }
 
   get smartMode(): boolean {
@@ -2218,7 +2203,7 @@ import 'https://unpkg.com/@cortex-js/compute-engine?module';
 }
 
 function toCamelCase(s: string): string {
-  return s.toLowerCase().replace(/[^a-zA-Z\d]+(.)/g, (m, c) => c.toUpperCase());
+  return s.replace(/[^a-zA-Z\d]+(.)/g, (_m, c) => c.toUpperCase());
 }
 
 // Function toKebabCase(s: string): string {
@@ -2233,7 +2218,7 @@ function toCamelCase(s: string): string {
 function getOptionsFromAttributes(
   mfe: MathfieldElement
 ): Partial<MathfieldOptions> {
-  const result = {};
+  const result = { readOnly: false };
   const attribs = MathfieldElement.optionsAttributes;
   Object.keys(attribs).forEach((x) => {
     if (mfe.hasAttribute(x)) {
@@ -2246,7 +2231,8 @@ function getOptionsFromAttributes(
       } else if (attribs[x] === 'number')
         result[toCamelCase(x)] = Number.parseFloat(value ?? '0');
       else result[toCamelCase(x)] = value;
-    } else if (attribs[x] === 'boolean') result[toCamelCase(x)] = false;
+    }
+    // else if (attribs[x] === 'boolean') result[toCamelCase(x)] = false;
   });
   return result;
 }
