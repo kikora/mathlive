@@ -1,6 +1,6 @@
 {
   "name": "@kikora/mathlive",
-  "version": "0.94.5-kikora.0",
+  "version": "0.94.8-kikora.0",
   "description": "A web component for math input",
   "license": "MIT",
   "funding": {
@@ -124,7 +124,7 @@
   },
   "prettier": "@cortex-js/prettier-config",
   "dependencies": {
-    "@cortex-js/compute-engine": "^0.12.2"
+    "@cortex-js/compute-engine": "0.12.2"
   },
   "devDependencies": {
     "@arnog/esbuild-plugin-less": "^1.1.0",

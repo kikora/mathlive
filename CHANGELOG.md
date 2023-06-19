@@ -1,6 +1,31 @@
+## 0.94.8 (2023-06-15)
+
+## Improvements
+
+- On RTL system, do not flip the direction of the virtual keyboard keycaps rows
+
+## 0.94.7 (2023-06-08)
+
+## Improvements
+
+- **#1989** Temporarily add back support for iOS versions older than 16.3.
+
+## 0.94.6 (2023-05-25)
+
+### Bug Fixes
+
+- Only display seletion when the mathfield is focused
+- **#1985** Add option for output format of `getPromptValue()`
+- **#1985** Return Ascii Math output for prompts/placeholders.
+
+### Feature
+
+- Pressing the tab key will move to the "next group" in the mathfield, if 
+  possible.
+
 ## 0.94.5 (2023-05-24)
 
-## Bug Fix
+### Bug Fix
 
 - The selection in read only mathfield was no longer visible.
 
@@ -3344,7 +3369,7 @@ The following functions have been renamed:
 - Fixed an issue where the alphabetic 'sans' keys on the virtual keyboard output
   blackboard.
 - Fixed an issue where the `\mleft.` and `\mright.` commands would not be
-  rendered correctly (or propertly converted to MathASCII).
+  rendered correctly (or propertly converted to ASCIIMath).
   (https://github.com/benetech/MathShare/issues/1182)
 
 ## 0.50 (May 4, 2020)
