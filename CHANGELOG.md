@@ -1,3 +1,436 @@
+## 0.98.5 (2023-12-27)
+
+## Isues Resolved
+
+- When a font size command is inside a `\left...\right` command, apply the 
+  font size to the content of the command. As a result `\frac34 + \left( \scriptstyle \frac12 \right)` will now render as expected.
+- **#2214** Typing the `^` key on a German Linux or Windows keyboard now inserts
+  a `^` character.
+- **#2214** When typing Unicode characters such as `²` or `ℂ`, correctly interpret them
+  as their LaTeX equivalent. This also affects parsing of the `value` property.
+- **#2000**, **#2063** A mathfield with multiple lines now generate correct LaTeX
+  using the `\displaylines` command.
+- When typing a superscript after `f`, `g` or some other function, correctly
+  interpret the superscript as an exponent, not as a function argument.
+- When a superscript or subscript is attached to a function, correctly position
+  a following `\left...\right` command closer to the function.
+- **#787**, **#1869** The `f`, `g` and `h` symbols are no longer hardcoded as
+  symbols representing functions.
+  
+  Whether a symbol is considered a function affects the layout of a formula,
+  specifically the amount of space between the symbol and a subsequent delimiter
+  such as a parenthesis.
+
+  Now whether a symbol should be treated as a function is determined by the 
+  `MathfieldElement.isFunction` hook. 
+  
+  By the default, this hook uses the `MathfieldElement.computeEngine` to 
+  determine if the domain of a symbol is a function. 
+  
+  This can be customized by setting the `isFunction` property of the 
+  mathfield or by declaring a symbol as a function using the `declare()` 
+  method of the compute engine. For example:
+
+  ```js
+  MathfieldElement.computeEngine.declare("f", "Functions");
+  ``` 
+
+  In addition, a new `isImplicitFunction` hook has been added which 
+  can be used to indicate which symbols or commands are expected
+  to be followed by an implicit argument. For example, the `\sin` function
+  can be followed by an implicit argument without parentheses, as in 
+  `\sin \frac{\pi}{2}`. This affects the editing behavior when typing a `/`
+  after the function. If an implicit function, the `/` will be interpreted as
+  an argument to the function, otherwise it will be interpreted as a fraction
+  with the function as the numerator.
+
+- The "phi" keycap in the virtual keyboard was incorrectly displaying
+  the `\varphi` symbol. It now displays the `\phi` symbol.
+
+- **#2227** Updating the content of the mathfield with `mf.innerText` 
+  will now correctly update the value of the mathfield.
+- **#2225** For consistency with `<textarea>`, when setting the
+  value change the selection to be at the end of the mathfield.
+
+## 0.98.3 (2023-12-07)
+
+### Improvements
+- Improved contrast calculation for the checkmarks over color swatches, now
+  using APCA.
+- In some situations, the virtual keyboard would not be displayed when
+  the mathfield was focused and the `mathVirtualKeyboardPolicy` was set
+  to `"auto"`.
+
+
+## 0.98.2 (2023-12-06)
+
+### Improvements
+- In some rare cases, the menu was not positioned correctly or would not 
+  display at all.
+- When dynamically changing the layout of the mathfield, for example
+  when using a font-size attribute based on viewport units, correctly
+  redraw the selection
+- Selection while dragging would stop after a few milliseconds
+- The "contains highlight" indicator is no longer displayed when the mathfield
+  is not focused or when the indicator is outside of a prompt.
+- **#2194** Ignore long press events when the pointer is a mouse.
+
+### Issues Resolved
+
+- **#2195** If the mathfield had a variable width the selection
+  would not be displayed correctly.
+- **#2190** Under some circumstances, commands selected from the menu 
+  could be executed twice.
+
+## 0.98.1 (2023-12-05)
+
+### New Features
+
+- Added `mf.showMenu()` method to programmatically show the context menu.
+
+### Issues Resolved
+
+- Correctly position the menu when the document has been scrolled.
+- When serializing, do not generate a `\text` command around a `\texttt` command.
+
+### Improvements
+
+- Keyboard navigate submenus with a grid layout
+
+## 0.98.0 (2023-12-03)
+
+### Breaking Changes
+
+- The `setPromptContent()` method has been renamed to `setPromptValue()` for
+  consistency with the `getPromptValue()` method.
+- The `stripPromptContent()` method has been removed. Its functionality can
+  be achieved with:
+
+```js
+const prompts = mf.getPrompts();
+const values = prompts.map(id => mf.getPromptValue(id));
+prompts.forEach(id => mf.setPromptValue(id, ""));
+```
+
+### Improvements
+
+- A new `mf.getPromptRange()` method returns the selection range of a prompt.
+  This can be used for example to focus a mathfield and select a specific prompt:
+
+```js
+mf.focus();
+mf.selection = mf.getPromptRange(id);
+```
+
+- The Color, Background Color and Variant menus correctly toggle the colors 
+  and variant, and reflect their state with a checkmark or mixedmark.
+
+- Setting the `mf.menuItems` property before the mathfield is inserted in the
+  DOM will now correctly update the menu items. 
+
+- Correctly display tooltips in the menu when invoked via the menu icon.
+
+- Localized menu items in the context menu.
+
+### New Features
+
+- **#348** Added a `placeholder` attribute, similar to the `placeholder`
+  attribute of a `<textarea>` element. This specifies a short hint as a 
+  LaTeX string that describes the expected value of the mathfield.
+  When the mathfield is empty, the placeholder text is displayed.
+  The placeholder text can be styled with the 
+  `math-field::part(placeholder)` CSS selector.
+
+- **#2162** Added a `"latex-without-placeholders"` format to the 
+  `getValue()` method. This format is similar to the `"latex"` 
+  format, but does not include the placeholders (for "fill-in-the-blanks").
+
+### Issues Resolved
+
+- **#2169** Changing the selection programatically will
+  now correctly update the mathfield.
+- **#2189** If the decimal separator is set to `,`, the virtual keyboard
+  will now correctly display the decimal separator as a comma.
+- **#2139** On some keyboard layouts, <kbd>ALT</kbd>+<kbd>/</kbd> would 
+  insert a `\/` command, which is not standard. Now, the simple `/` is
+  inserted.
+
+
+## 0.97.4 (2023-11-29)
+
+### Issues Resolved
+
+- When a global `.row` class was defined, it would be applied to the virtual
+  keyboard rows, resulting in incorrect layout.
+
+### Improvements
+
+- Added `mf.queryStyle()` method to query the style of a selection or the
+  current style if no selection.
+
+## 0.97.3 (2023-11-28)
+
+### Improvements
+
+- The `mode-change` event is now dispatched more consistently when the mode
+  changes.
+- When the mathfield loses focus, if some of the content is in LaTeX mode, 
+  it remains in LaTeX mode. Previously, it would switch to math mode when
+  losing focus.
+- Changing the `user-select` CSS property before inserting the mathfield 
+  in the DOM would not always be respected.
+- Use the DOM Popover API when available, which should ensure menus are 
+  displayed on top of other elements more consistently.
+- Added support for accented characters in the virtual keyboard (press and 
+  hold a vowel on an alphabetic keyboard to get accented variants), 
+  including a modified AZERTY layout (<kbd>SHIFT</kbd>+digits to get common 
+  accented characters).
+- Improved rendering of the menu for CJK and LTR languages.
+
+### Issues Resolved
+
+- If there were multiple mathfield elements on the page, only the last one 
+  would display tooltips.
+- **#2184** Pressing the <kbd>TAB</kbd> key when in a prompt (fill-in-the-blank)
+   would not move to the next prompt
+- **#2183** The MathML serialization of factorial was incorrect.
+- **#2181** The MathML serialization of limits was incorrect.
+
+## 0.97.2 (2023-11-21)
+
+### Issues Resolved
+
+- Keybindings for German Linux keyboard layout were not working correctly.
+
+## 0.97.1 (2023-11-20)
+
+### Issues Resolved
+
+- **#2180** Allow the context menu to get turned off by setting `mf.menuItems = []`
+- Fixed a layout issue with the positioning of the context menu in some
+  cases.
+- Improved dark mode appearance of context menu
+
+## 0.97.0 (2023-11-20)
+
+### New Features
+
+- **Context Menu**
+  Right-clicking on a mathfield or clicking the menu icon next to the 
+  virtual keyboard icon will bring up a context menu.
+
+  The keyboard shortcut <kbd>ALT</kbd>+<kbd>SPACE</kbd> will also bring up
+  the context menu. This keyboard shortcut previously toggled the virtual
+  keyboard. This keyboard shortcut to toggle the virtual keyboard is now
+  <kbd>ALT</kbd>+<kbd>SHIFT</kbd>+<kbd>SPACE</kbd>.
+  
+  The menu includes commands to:
+  - insert and edit matrixes
+  - evaluate, simplify and solve equations
+  - change the variant of a symbol (blackboard, fraktur, etc...)
+  - change the style (italic, bold, etc...) of the selection
+  - change the color and background color
+  - insert text
+  - copy LaTeX, MathML or  MathASCII to the clipboard
+  - toggle the virtual keyboard
+
+  The content of the menu may change in future versions, and feedback is
+  welcome.
+
+  The menu can be customized by setting the `mf.menuItems` property of the
+  mathfield. The value of this property is an array of menu items. 
+  See [the documentation](https://cortexjs.io/mathlive/guides/menus/) for details.
+
+### Improvements
+
+- The tooltip above the virtual keyboard toggle (and the menu glyph) now
+  only appears after a delay.
+
+### Issues Resolved
+
+- The expression `\pmod5` is now correctly parsed as `\pmod{5}`.
+  Macros that used an argument that was not a literal group
+  were not parsed correctly.
+
+
+## 0.96.2 (2023-11-16)
+
+### Issues Resolved
+
+- The vertical alignment of formulas containing some fractions was incorrect
+  in some cases.
+- **#2168** Changing the `MathfieldELement.locale` or `MathfieldElement.strings`
+  would not affect existing mathfields.
+- Incorrectly accessing static properties (for example using `mf.locale` 
+  instead of `MathfieldElement.locale`) will now throw an error.
+- **#2160** The keycap tooltips were not displayed.
+- **#2144** When `smartFence` was on, an inline shortcut that conflicted
+  with a delimiter was ignored.
+
+### Improvements
+
+- **#2141**: Added St Mary's Road symbols for theoretical computer science, 
+  including `\mapsfrom`.
+- **#2158** Support the German keyboard layout on Linux.
+- **#2102** The mathfield element now respects the `user-select` CSS property.
+  If it is set to `none`, the mathfield will not be selectable.
+
+## 0.96.1 (2023-11-15)
+
+### Improvements
+
+- Simplified the syntax to modify registers. Use `mf.registers.arraystretch = 1.5`
+  instead of mf.registers = {...mf.registers, arraystretch: 1.5}`
+- Allow changing registers using `\renewcommand`, for example
+  `\renewcommand{\arraystretch}{1.5}`
+- Added keycap shortcuts `[up]` and `[down]` to move the selection up or down
+  in a matrix.
+- Display the environment popover when the selection is inside a matrix, even when the virtual keyboard is not visible.
+
+### Issues Resolved
+
+- **#2159** Runtime error in sandboxed mode when in an iframe from different 
+  origin
+- **#2175** Addressed some rendering issues with Safar where a fraction inside a `\left...\right` was vertically offset.
+- **#2176** Using the `[hide-keyboard]` virtual keycap would cause a runtime error.
+- **#2161** When the virtual keyboard is hidden, a `geometrychange` event is 
+  dispatched.
+
+## 0.96.0 (2023-11-14)
+
+### Breaking Changes
+
+- The function `serializeMathJsonToLatex()` has been renamed to `convertMathJsonToLatex()` for consistency.
+
+### Issues Resolved
+
+- A closing parenthesis following a function application would be ignored, 
+  i.e. `(f(x))` would be parsed as `(f(x)`.
+- **#2116** Pressing the "/" key after an expression ending with a superscript would
+  not recognize the left argument as a numerator.
+- **#2124** In text mode, some characters were incorrectly interpreted as a math command, for example `(` was interpreted as \lparen`. This could cause some interoperability issues.
+- **#2110** If using the keyboard to enter several macros mapping to an 
+ `\operatorname` command,  some of the commands could fail to render. For example,
+ typing "1mm + 2mm" in a mathfield would result in "1 + 2mm" to be displayed.
+- When inserting an mchem atom, preserve the `verbatimLatex` associated with 
+  the atom, so that the `value` property of the atom is correctly serialized.
+- When invoking the `moveToMathfieldEnd` command, the selection was not 
+  changed if it was not collapsed and already at the end of the mathfield.
+  Similarly for `moveToMathfieldStart`.
+
+### Improvements
+
+- Added support for additional commands from the `mathtools`, `actuarialangle`, `colonequals`, `statmath` and `amsopn` packages
+- Added support for `longdiv` enclosure (`\mathenclose{longdiv}{...}`)
+- The decimal separator key (`.`) in the virtual keyboard was displayed as a blank key.
+- **#2109** In the virtual keyboard, some placeholders could be hard to see when 
+  a keycap was in a pressed state.
+- **#2105** The keycap `shift +` in the numeric keyboard was inserting a sum
+ with limits contrary to what the keycap label indicated.
+- In the alphabetic virtual keyboard, the `,` key now produces a semicolon
+  when shifted and has a variant panel with additional punctuation.
+- Improved virtual keyboard for integrals with more explicit template
+- When removing the limit of an integral or a sum, do not delete the operator
+  itself.
+- **#2122** On the Virtual Keyboard, the multiplication key now produces `\cdot` instead
+  of `\times`. Use shift to produce `\times`.
+- Improved serialization to ASCIIMath and MathML (**#2130** and others)
+- **#2121** For ASCIIMath and MathML serialization, including phantom closing
+  delimiter in the output.
+- Pressing the Action keycap on the virtual keyboard with the shift key pressed
+  now inserts a new line (similar to what shift+enter does on a physical keyboard).
+- Render `\displaystyle` and `\textstyle` to MathML
+- Avoid runtime error if the mathfield gets deleted during a selection change
+  event.
+
+## 0.95.5 (2023-08-18)
+
+### Issues Resolved
+
+- **#2091** The variant panel for the `7` key was the variant panel for `4`.
+- **#2093** Inline shortcuts can be corrected with backspace, i.e. typing 
+ `sen[backspace][backspace]in` will be corrected to `\\sin`.
+- **#2018** Some VK toolbar items could be offset by a few pixels on some 
+  mobile devices
+- The caret was not visible when placed after an `\operator*{}` command
+- The `\class{}{}` command in a mathfield was not working correctly.
+
+### Improvements
+
+- **#2052** When double-clicking then dragging, the selection is now extended
+  to the nearest boundary. This applies to math, text and LaTeX zones.
+- Added `prompt` CSS part to the mathfield element. This allows styling of 
+  prompts (placeholders) in a fill-in-the-blank mathfield.
+- Added `w40` keycap class (4-wide)
+- When using `renderMathInElement()` preserve the LaTeX as a `data-` attribute
+  on the element.
+- Added speakable text for `\imaginaryI`, `\imaginaryJ`, `\ne` and `\neq`
+- Added ARIA label to keyboard toggle glyph
+- More robust check for `PointerEvent` support
+- Throw an error if attempting to access `mf.mathVirtualKeyboard`. The virtual
+  keyboard is now a singleton, accessible as `window.mathVirtualKeyboard`.
+- When a `command` attribute is associated with a keycap, a `math-virtual-keyboard-command` event is dispatched when the keycap is pressed.
+
+
+## 0.95.4 (2023-08-11)
+
+### Issues Resolved
+
+- **#2090** A runtime error could occur when adding a superscript inside a square root
+- **#2068** Use a more compact keyboard layout for phones in landscape mode.
+### Improvements
+
+- **#2089** Added `x^{#?}` in the virtual keyboard variant panel for `x`
+- **#2082** The shortcut for `\int` was triggered with `sint`. Note that in case of similar conflicts, pressing the spacebar will prevent the shorcuts from taking effect, i.e. "sin t".
+- 
+## 0.95.2 (2023-08-09)
+
+### Improvements
+
+- Added `if-math-mode` and `if-text-mode` classes to conditionally show 
+  virtual keyboard keys.
+- **#2086** When navigation a root with an index, the index is now navigater first.
+
+## 0.95.1 (2023-07-25)
+
+### Improvements
+
+- **#2064**, **#2065** Improved behavior of virtual keyboard shift key, 
+  contributed by https://github.com/oscarhermoso
+
+### Issues Resolved
+
+- **#1995** When right clicking to bring up the variant panel in the virtual 
+  keyboard, in some situations the virtual keyboard would lock up.
+- **#2047** Use `\exp` instead of `\mathrm{exp}` in the virtual keyboard
+- **#2067** When setting up the virtual keyboard policy to `"sandboxed"` in
+  a cross domain iframe, a runtime error would occur.
+
+## 0.95.0 (2023-07-04)
+
+
+### Improvements
+
+- Improved behavior when pressing the tab key
+- **#2015** New `environmentPopoverPolicy` option. Set to:
+  - `"auto"` to show environment popover when inside a tabular environment and
+    the virtual keyboard is visible (current behavior)
+  - `"on"` to show it when in a tabular environment
+  - `"off"` to never show it
+  
+### Issues Resolved
+
+- **#2008** The `\underline` and `\overline` commands now render correctly.
+- **#1996**, **#2025** MathML output could occasionally be incorrect for the  
+  `\left...\right` command
+- **#2009** Chemical equations did not render correctly
+- **#1990** The closing delimiter of a `\left...\right` command was incorrectly
+  adopting the style of the last atom inside the command.
+- **#2044** When overflowing the mathfield using the virtual keyboard, the 
+  caret would be hidden from view.
+- **#2000**, **#2016** Correctly handle when the root is not a group, i.e. 
+  when it's a multi-line array.
+
 ## 0.94.8 (2023-06-15)
 
 ## Improvements
@@ -12,7 +445,7 @@
 
 ## 0.94.6 (2023-05-25)
 
-### Bug Fixes
+### Issues Resolved
 
 - Only display seletion when the mathfield is focused
 - **#1985** Add option for output format of `getPromptValue()`
@@ -25,7 +458,7 @@
 
 ## 0.94.5 (2023-05-24)
 
-### Bug Fix
+### Issues Resolved
 
 - The selection in read only mathfield was no longer visible.
 
@@ -38,7 +471,7 @@
   produced if an attempt is made to modify the array. If using Typescript, 
   a compile-time error is also generated.
   
-## Bug Fixes
+## Issues Resolved
 
 - **#1979** Vectors were displayed with an offset
 - **#1978** Pasting or inserting some content could result in a runtime error
@@ -53,7 +486,7 @@
 
 ## 0.94.2 (2023-05-22)
 
-## Bug Fixes
+## Issues Resolved
 
 - **#1976** Toggling the virtual keyboard several times would eventually not
   display the virtual keyboard.
@@ -68,7 +501,7 @@
   reduction of memory consuption by 2/3 in a page with 1,000 mathfields.
 - Improved MathML serialization (**#1870**, **#1803**, **#1933**, **#1648**, **#737**, **#150**, variants: blackboard, fraktur, bold, etc...).
 
-## Bug Fixes
+## Issues Resolved
 
 - **#1963** Typing a "/" after a digit containing a french decimal (`,`) did 
   not include the digits before the decimal.
@@ -98,7 +531,7 @@
 - Improvements to smart fence behavior, including better undoability.
 
 
-## Bug Fixes
+## Issues Resolved
 
 - Selection display was incorrect when the equation included a colored 
   background.
@@ -142,7 +575,7 @@
 - Importing the Compute Engine and MathLive in the same projec should no 
   longer trigger a conflict.
 
-## Bug Fixes
+## Issues Resolved
 - **#1646** **mhchem**: states of aggregation is now rendered correctly. Added 
   support for the `\mskip` command
 - When editing a mathfield, after inserting both a superscript and 
@@ -194,7 +627,7 @@
 - The `arraystretch` register is now supported to customize the vertical spacing
   of matrixes and other multi row environments.
 
-### Bug Fix
+### Issues Resolved
 
 - When a keybinding conflicts with a composition, cancel the composition. For 
  example, when typing <kbd>option</kbd>+<kbd>U</kbd>.
@@ -225,13 +658,13 @@
   
 ## 0.91.2 (2023-04-06)
 
-### Bug Fixes
+### Issues Resolved
 - Update editing toolbar when virtual keyboard is made visible
 - **#1919** Correctly position the popover panel above or below the mathfield based on the space available. Allow for more suggestions to be displayed, and include a scrollbar when necessary.
-
+  
 ## 0.91.1 (2023-04-05)
 
-### Bug Fix
+### Issues Resolved
 
 - The context menu that appears on long press on ChromeOS has been disabled as
  it interfered with long press for variant keys
@@ -299,7 +732,7 @@ virtual keyboards and support for shift key modifier for many keycaps.
 - Architectural improvements: the virtual keyboard is now more efficient, uses 
   fewer event handlers and a simplified and lighter weight DOM tree.
 
-### Bugs Fixed
+### Issues Resolved
 
 - On ChromeOS devices with a touch screen, long pressing a keycap in the 
   virtual keyboard no longer triggers the contextual menu.
@@ -308,20 +741,20 @@ virtual keyboards and support for shift key modifier for many keycaps.
 
 ## 0.90.11 (2023-03-31)
 
-### Bug Fixed
+### Issues Resolveded
 
 - The up and down arrow did not move the cursor, when in a fraction for example.
 
 ## 0.90.9 (2023-03-28)
 
-### Bug Fixed
+### Issues Resolveded
 
 - **#1890** Attempt to fix a remaining Typescript declaration issue when using
   MathLive without the Compute Engine
 
 ## 0.90.8 (2023-03-27)
 
-### Bugs Fixed
+### Issues Resolved
 
 - **#1830** The keybinding to toggle text mode (alt+") could not be used on some
   keyboard layouts. Added shift+alt+T as a keybinding to switch to text mode.
@@ -344,14 +777,14 @@ virtual keyboards and support for shift key modifier for many keycaps.
 
 ## 0.90.7 (2023-03-24)
 
-### Bug Fixed
+### Issues Resolveded
 
 - **#1861** In Firefox, an apparently focused mathfield would not always accept
   keyboard input.
 
 ## 0.90.6 (2023-03-23)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1881**, **#1883** Fixed issues with TypeScript declarations of public
   interface
@@ -679,7 +1112,7 @@ MathfieldElement.soundsDirectory = null;
   it would circularly stay inside the current mathfield, with no possibility of
   escape).
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1850** When multiple `\char` commands were in an expression, they would all
   have the same argument when serialized
@@ -696,14 +1129,14 @@ MathfieldElement.soundsDirectory = null;
 
 ## 0.89.4 (2023-02-27)
 
-### Bug Fix
+### Issues Resolved
 
 - Fix an issue where the virtual keyboard would not activate when not using a
   shared virtual keyboard.
 
 ## 0.89.3 (2023-02-27)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1723** The Ctrl-X/C/V keyboard shortcuts did not trigger when using a
   touch-capable device with a physical keyboard connected.
@@ -764,7 +1197,7 @@ MathfieldElement.soundsDirectory = null;
 - **#1806** Support for speaking matrices and other LaTeX environments.
   Contribution from @androettop. Thanks, Pablo!
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1802** MathML markup for expressions like `a(b)^2` was invalid.
 
@@ -774,7 +1207,7 @@ MathfieldElement.soundsDirectory = null;
 
 - Better MathML serialization of `\operatorname{}` and `\mathrm{}`
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1772** Typing `/` after `f(x)` will now consider `f(x)` as the numerator,
   instead of `(x)`
@@ -797,7 +1230,7 @@ MathfieldElement.soundsDirectory = null;
 - Removed dependency on `jsdom` for server-side rendering.
 - Switched bundler from `rollup` to `esbuild`
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1795** Deleting forward when there is nothing to delete was throwing an
   exception (introduced in 0.86.1)
@@ -810,7 +1243,7 @@ MathfieldElement.soundsDirectory = null;
 
 ## 0.86.1 (2023-01-18)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1773**, **#1542**: better handling of interaction with the virtual keyboard
   on touch-based devices (always use PointerEvents to handle interaction with
@@ -853,7 +1286,7 @@ will not be available: `mf.expression` will always return `null` and cannot be
 used to change the content of the mathfield, and `math-json` is not available as
 a format on the clipboard,
 
-### Bug Fixes
+### Issues Resolved
 
 - The vertical placement of the superscript after a `\left...\right` command was
   incorrect.
@@ -901,7 +1334,7 @@ a format on the clipboard,
   context but it also includes the `version` property which may be of use for
   debugging or to report issues.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1715**, **#1716**: fill-in-the-blank placeholders inside a `<math-field>`
   did not inherit the options from their parent container.
@@ -925,7 +1358,7 @@ a format on the clipboard,
 - The `MathfieldElement` now has a setter for `expression`, which allows to set
   the value of a mathfield to a MathJSON expression.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1669** Don't attempt to get the local URL base when using absolute URLs.
   Allow `null` as a value for `fontsDirectory` and `soundDirectory` to prevent
@@ -953,7 +1386,7 @@ a format on the clipboard,
 
 - Updated to Compute Engine 0.8
 
-### Bug Fixes
+### Issues Resolved
 
 - The caret after an environment without fences (e.g. `matrix`, `aligned`, etc)
   would not be displayed.
@@ -982,7 +1415,7 @@ a format on the clipboard,
 
 ## 0.80.0 (2022-09-27)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1540** When changing the `readonly` or `disabled` attribute of a mathfield,
   hide the virtual keyboard if the mathfield had the focus.
@@ -1066,7 +1499,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 - When a scaling factor is applied to the mathfield or one of its DOM ancestors,
   correctly scale the selection background accordingly
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1042** Spacing atoms (e.g. `\;`) are now clickable and selectable
 - **#1590** Improved selection of content inside tabular environments (matrix,
@@ -1087,7 +1520,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
   commands are provided for improved compatibility with existing LaTeX content,
   but in general infix commands are not recommended to create new content.
 
-### Bug Fixed
+### Issues Resolveded
 
 - **#1583** Changing the focus programatically could result in subsequent
   keyboard input being incorrect
@@ -1099,7 +1532,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 
 ## 0.78.1 (2022-08-12)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1570** Multichar symbols (using `onMulticharSymbol`) would not always be
   recognized, for example when following a binary operator.
@@ -1172,7 +1605,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 - **#1439** A synthetic `click` event is now dispatched when a click occurs
   inside the mathfield.
 
-### Bug Fixes
+### Issues Resolved
 
 - When using the Chrome Device Toolbar to emulate a mobile device, typing on the
   physical keyboard resulted in duplicate input.
@@ -1194,7 +1627,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
   `commit` (equivalent to **Return** on physical keyboard). Pressing this key
   (or the **Return** key on a physical keyboard) triggers a `change` event.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1523** When switching between keyboard layouts the body of the document was
   getting erroneously enlarged vertically.
@@ -1208,7 +1641,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 
 ## 0.76.1 (2022-06-29)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1521** **Regression** In some cases a vertical scrollbar unexpectedly
   appeared in the mathfield
@@ -1253,7 +1686,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
   LaTeX representation of the mathfield content, without any color or background
   color styling command
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1489** In some cases, applying a background color, then entering some
   equations, could result in incorrect LaTeX output
@@ -1296,7 +1729,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 - Added the `container` and `content` CSS part to customize the inside of the
   mathfield.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1497** On iOS, tapping the edge of the mathfield could bring the native
   virtual keyboard
@@ -1338,7 +1771,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
   destructed and reconstructed, even if its configuration was identical between
   two mathfields).
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1477** Undo/redo did not generate an `input` event
 
@@ -1352,7 +1785,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 - Change the default textual output to clipboard to use `$$` as a format
   indicator.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1467** Improvements to the Typescript public declarations
 - **#1475** Copying a formula containing a matrix could render the mathfield
@@ -1360,7 +1793,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 
 ## 0.73.6 (2022-05-28)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1466** In LaTeX mode, doing a Select All (cmd+A), then delete would put the
   mathfield in an inconsistent state
@@ -1370,7 +1803,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 
 ## 0.73.4 (2022-05-27)
 
-### Bug Fixes
+### Issues Resolved
 
 - Correctly export the Typescript declaration for some static functions.
 - When editing a formula that contains a matrix, the formatting of the matrix
@@ -1387,7 +1820,7 @@ mf.addEventListener('mode-change', (ev) => ev.preventDefault(), {
 
 ## 0.73.1 (2022-05-24)
 
-### Bug Fixes
+### Issues Resolved
 
 - Using macros without arguments (e.g. `\RR`) could result in incorrect LaTeX
 - The virtual keyboard could become invisible when re-focusing a mathfield
@@ -1498,7 +1931,7 @@ in order to preserve the same settings, you would now use:
 - The MathJSON which is exported to the clipboard during copy/cut operations now
   include the verbatim LaTeX from the mathfield.
 
-### Bug Fixes
+### Issues Resolved
 
 - When extending the selection backwards over a `captureSelection` group, do not
   extend more than necessary
@@ -1524,7 +1957,7 @@ in order to preserve the same settings, you would now use:
 
 ## 0.72.2 (2022-04-30)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1427** An issue introduced in the previous release: the serialization to
   LaTeX of some functions (e.g. `\log`) failed.
@@ -1544,7 +1977,7 @@ in order to preserve the same settings, you would now use:
 
 ## 0.72.0 (2022-04-18)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1017** Display tooltip over buttons of virtual keyboard button bar
 - **#1356** In inline mode, the fraction bar appeared too close to the numerator
@@ -1599,7 +2032,7 @@ in order to preserve the same settings, you would now use:
   escaped in JavaScript). However, this caused some legitimate LaTeX to not be
   interpreted correctly. The double-backslash are no longer "simplified".
 
-### Bug Fixes
+### Issues Resolved
 
 - A style applied to a an atom using `applyStyle()` was not propagated to its
   children
@@ -1613,7 +2046,7 @@ in order to preserve the same settings, you would now use:
 - Uses new version of Compute Engine for serialization to MathJSON and parsing
   of LaTeX from MathJSON.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#934** Improved display of the root horizontal bar in some browsers
 - **#1385** Typing `&` is correctly interpreted as `\\&` (and not `&`)
@@ -1645,7 +2078,7 @@ in order to preserve the same settings, you would now use:
 - Pressing the `\` key after a trigonometric function will not include the
   function in the numerator of the fraction.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1024** `\ne` and `\neq` render correctly (fix contributed by @AceGentile)
 - Changes to the `read-only` attribute are now properly detected (fix
@@ -1660,7 +2093,7 @@ in order to preserve the same settings, you would now use:
 
 - Support for Vue 3.x
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1240** After a Select All (or other selection adjusting commands),
   inserting characters in LaTeX mode may result in unresponsive input.
@@ -1670,7 +2103,7 @@ in order to preserve the same settings, you would now use:
 
 ## 0.69.8 (2021-11-08)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1146** When the pointer was over a mathfield, using the scrollwheel or
   scroll gesture to scroll the page was not possible
@@ -1712,7 +2145,7 @@ in order to preserve the same settings, you would now use:
 
 - **#1125** don't enable switching to LaTeX mode for read-only mathfields
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1124** when setting the `inlineShortcuts` options to empty, don't fallback
   to the default shortcuts
@@ -1752,7 +2185,7 @@ in order to preserve the same settings, you would now use:
 
 - Added localization for Irish (contributed by @physedo).
 
-### Bug Fixes
+### Issues Resolved
 
 - **#1000** When serializing subscripts and superscripts, serialize the
   subscript first: `\int_0^{\infty}` instead of `\int^{\infty}_0`.
@@ -1872,7 +2305,7 @@ or:
 - the `onExport()` hook provides an opportunity to customize the format exported
   to the Clipboard.
 
-### Bug Fixes
+### Issues Resolved
 
 - Actually change the keyboard toggle glyph when changed with `setOptions`
 - Reparse the formula when the `macros` dictionary is updated
@@ -1894,7 +2327,7 @@ or:
 - MathML: improved MathML output, especially for formulas with unbalanced
   delimiters
 
-### Bug Fixes
+### Issues Resolved
 
 - **#969** and **#967** Changed the way the build is done so that MathLive does
   not use MathJSON as a submodule but as a regular npm dependency, and builds
@@ -1957,7 +2390,7 @@ Learn more at [cortexjs.io/math-json/](https://cortexjs.io/math-json/).
   file also compile with `strictNullChecks` if you make use of it in your own
   project.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#948** The Typescript declaration of `set plonkSound()` failed when compiled
   with `strictNullChecks`.
@@ -1984,7 +2417,7 @@ Learn more at [cortexjs.io/math-json/](https://cortexjs.io/math-json/).
 - When replacing a selected range, snapshot in the undo state the collapsed
   selection before inserting the replacement.
 
-### Bug Fixes
+### Issues Resolved
 
 - Correctly calculate the padding for enclose atoms (broken in 0.66)
 - Setting the `keypressSound` to `null` would not turn off the sounds. Setting
@@ -1999,7 +2432,7 @@ Learn more at [cortexjs.io/math-json/](https://cortexjs.io/math-json/).
 
 ## 0.66.1 (2021-05-21)
 
-### Bug Fixes
+### Issues Resolved
 
 - Revert improvements where the `display` property of the mathfield would change
   depending on the `default-mode` property. This had unintended consequences in
@@ -2130,7 +2563,7 @@ See
 [Supported TeX/LaTeX Commands](https://cortexjs.io/mathlive/reference/commands/)
 for more details.
 
-### Bug Fixes
+### Issues Resolved
 
 - When a mathfield is created, then immediately removed from the document, do
   not crash. The creation of the mathfield triggered an asynchronous rendering
@@ -2176,7 +2609,7 @@ for more details.
 
 - Renamed `Span` to `Box`.
 
-### Bug Fixes
+### Issues Resolved
 
 - When using Firefox on Windows, the layout of the formula could shift by a
   fraction of a pixel when moving the caret.
@@ -2306,7 +2739,7 @@ for more details.
 
 - Increased the number of automated and static tests.
 
-### Bug Fixes
+### Issues Resolved
 
 - The size and spacing of fractions in superscript did not match the TeX layout.
 - Correctly apply TeX inter-atom spacing rules as per TeXBook p. 270. The
@@ -2339,7 +2772,7 @@ for more details.
 
 ## 0.63.1 (2021-04-24)
 
-### Bug Fixes
+### Issues Resolved
 
 - On the UK QWERTY keyboard, pressing the `\` key did not switch to LaTeX mode.
   This key, although it looks like an ordinary key, is unique to the UK QWERTY
@@ -2359,7 +2792,7 @@ for more details.
 - Export `version` (previously available as `MathLive.version`).
 - **#199** Added `infty` and `int` inline shortcuts.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#708** Pressing on the bottom part of the virtual keyboard keycap did not
   trigger the key action.
@@ -2377,7 +2810,7 @@ for more details.
 - On iPad OS prevent the document selection from being altered after
   long-pressing an alternate key in some cases.
 
-### Bug Fixes
+### Issues Resolved
 
 - A $$\chi_{13}$$ (0.1em) gap between the nucleus and the above element was
   missing in `OverUnder` atoms (`\overset`, etc...).
@@ -2433,7 +2866,7 @@ for more details.
   value of `inline-math` to set the mathfield in inline math `\textstyle` by
   default.
 
-### Bug Fixes
+### Issues Resolved
 
 - Fixed LaTeX output of `\htmlData`, `\cssId` and `\class` commands.
 - Ignore commands that are only applicable in some modes when they are used in
@@ -2477,7 +2910,7 @@ for more details.
 
 - **#793**. Added '%' inline shortcut
 
-### Bug Fixes
+### Issues Resolved
 
 - **#896**. Touch events were not properly detected on FireFox.
 - When using the `vite` bundler, the library location could not be determined
@@ -2604,7 +3037,7 @@ for more details.
   key/value pairs, e.g. `\htmlData{foo=green,bar=blue}`. A corresponding
   `data-foo` and `data-bar` DOM attribute is generated to the rendered DOM.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#805**: exponent towers did not display correctly
 - **#857**: when a mathfield was in `read-only` mode, it was still possible to
@@ -2723,7 +3156,7 @@ for more details.
 
 ## 0.59.0 (2020-11-04)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#685** Virtual keyboard event listeners were not properly released when the
   mathfield was removed from the DOM
@@ -2758,7 +3191,7 @@ for more details.
 - The `$text()` method, which is deprecated, was accidentally prematurely
   removed. It has been added back.
 
-### Bug Fixes
+### Issues Resolved
 
 - Inline shortcuts would not always be triggered correctly, for example `x=sin`
   &rarr; `x\sin` instead of `x=\sin`
@@ -2932,7 +3365,7 @@ The following functions have been renamed:
 - Improved layout of the virtual keyboard on narrow mobile devices (fill the
   available width).
 
-### Bug Fixes
+### Issues Resolved
 
 - **#198**: typing backspace while typing inline shortcuts would prevent the
   shortcuts from being recognized
@@ -2999,7 +3432,7 @@ The following functions have been renamed:
   non-minified version (`mathlive.js` and `mathlive.mjs` can be used to help in
   debugging issues or to apply patches).
 
-### Bug Fixes
+### Issues Resolved
 
 - The fonts failed to load when loading MathLive using a `<script>` tag and a
   CDN. The fonts folder is now resolved correctly with the following
@@ -3012,7 +3445,7 @@ The following functions have been renamed:
 
 ## 0.54.0 (2020-06-24)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#490** Firefox does not load fonts There is a bug in Firefox
   (https://bugzilla.mozilla.org/show_bug.cgi?id=1252821) where the status of
@@ -3030,7 +3463,7 @@ The following functions have been renamed:
 
 ## 0.53.3 (2020-06-24)
 
-### Bug Fixes
+### Issues Resolved
 
 - **#504** "Spacing is inconsistent after editing"
 
@@ -3086,7 +3519,7 @@ The following functions have been renamed:
 
 ## 0.53.2 (2020-06-10)
 
-### Bug Fixes
+### Issues Resolved
 
 - Adjusted height of square root (there was some extra blank space above)
 - Ensure that the 'dt' inline shortcut does not trigger when writing "width" (it
@@ -3096,7 +3529,7 @@ The following functions have been renamed:
 
 ## 0.53.1 (2020-06-01)
 
-### Bug Fixes
+### Issues Resolved
 
 - In the virtual keyboard, use `\scriptstyle` to display small symbols
 - Better vertical alignment of extensible arrows
@@ -3169,7 +3602,7 @@ The following functions have been renamed:
 
 - Added support for `\laplace` and `\Laplace` symbols
 
-### Bug Fixes
+### Issues Resolved
 
 - **#469** The keyboard layout on Linux was not detected correctly, resulting in
   some keys (such as arrows and backspace) not working correctly.
@@ -3214,7 +3647,7 @@ The following functions have been renamed:
 
 - Added support for German keyboard layout.
 
-### Bug Fixes
+### Issues Resolved
 
 - The Undo and Redo button in the virtual keyboard did not change their state
   appropriately given the state of the undo stack.
@@ -3254,7 +3687,7 @@ The following functions have been renamed:
 
 - In some cases, the top of the placeholder character could be cut off
 
-### Bug Fixes
+### Issues Resolved
 
 - The Read Aloud feature would not work when a Neural Engine AWS voice was used
   (such as Joana or Matthew)
@@ -3281,7 +3714,7 @@ The following functions have been renamed:
   space when necessary (`\rbrack a` would generate `\rbracka`)
 - Minor rendering performance improvement
 
-### Bug Fixes
+### Issues Resolved
 
 - The absolute value character "|" (and other small delimiters) would be
   displayed in the wrong font (and too small)
@@ -3318,7 +3751,7 @@ The following functions have been renamed:
 
 ## 0.50.4 (2020-05-09)
 
-### Bug Fixes
+### Issues Resolved
 
 - **Fix #444** The "x^2" key in the virtual keyboard did not work as expected.
 
@@ -3335,7 +3768,7 @@ The following functions have been renamed:
 
 ## 0.50.2 (2020-05-07)
 
-### Bug Fixes
+### Issues Resolved
 
 - Fixed an issue with rendering of MathML
 
@@ -3364,7 +3797,7 @@ The following functions have been renamed:
   An error code will indicate the problem encountered, but the parsing will
   attempt to recover, in keeping with the previous behavior.
 
-### Bug Fixes
+### Issues Resolved
 
 - Fixed an issue where the alphabetic 'sans' keys on the virtual keyboard output
   blackboard.
@@ -3576,7 +4009,7 @@ and velocity of the project.
   113Kb (!).
 - Switched to `jest` as a test runner.
 
-### Bug Fixes
+### Issues Resolved
 
 - **Fix #285**: The initial content of the mathfield was considered part of the
   undo stack, that is, typing command+Z before making any editing operations
@@ -3758,7 +4191,7 @@ mf.setConfig({
   are now closer to what LaTeX does, in all its wonderful weirdness (see
   https://texfaq.org/FAQ-2letterfontcmd). Added `\selectfont` command.
 
-### Bug Fixes
+### Issues Resolved
 
 - **#371**: When clicking after the last element in the mathfield, always set
   the anchor to be the last element in the root, i.e. as if `moveToMathFieldEnd`
@@ -3799,7 +4232,7 @@ mf.setConfig({
 
 ## 0.34.0 (2020-02-05)
 
-### Bug Fixes
+### Issues Resolved
 
 - Fix #364: Some expressions containing placeholders, when inserted, would not
   have the placeholder selected. For example, when using the "differentialD" key
@@ -3836,7 +4269,7 @@ mf.setConfig({
 
 ## 0.33 (2019-12-19)
 
-### Bug Fixes
+### Issues Resolved
 
 - Fix #313. Text mode content is not output in MathML, speech and MathJSON
   (contribution by @NSoiffer)
@@ -3845,13 +4278,13 @@ mf.setConfig({
 
 ## 0.32.3 (2019-10-29)
 
-### Bug Fixes
+### Issues Resolved
 
 - Fix #286 `\mathbb{}`s are missing in the LaTeX output
 
 ## 0.32.2 (2019-09-24)
 
-### Bug Fixes
+### Issues Resolved
 
 - Fixed an issue where some keys in the virtual keyboard would be unresponsive
 
@@ -3876,7 +4309,7 @@ mf.setConfig({
 - Use CSS class `.ML__smart-fence__close` to style closing smart fence
 - Added speech support for text mode and units (contributed by @NSoiffer)
 
-### Bug Fixes
+### Issues Resolved
 
 - Fixed an issue where clicking past the end of the equation would select the
   numerator or denominator if the last element was a fraction, instead of place
@@ -3896,7 +4329,7 @@ mf.setConfig({
 
 ## 0.29.1 (2019-05-19)
 
-### Bug fixes
+### Issues Resolved
 
 - #201: the popover button was not responsive
 - #195: (partial fix) improve support for Edge (still requires Babelization)
@@ -3950,7 +4383,7 @@ mf.setConfig({
     will result in the "$" being in math mode.
 - Switching to/from command mode will not suppress smart mode.
 
-### Bug fixes
+### Issues Resolved
 
 - Fixed a crash when using smartFence with `sin(x^2/`
 - Fixed `alt+=` keyboard shortcut on Windows.
@@ -3961,7 +4394,7 @@ mf.setConfig({
 
 ## 0.28 (2019-04-22)
 
-This release contains some small bug fixes and improvements.
+This release contains some small Issues Resolved and improvements.
 
 - Reduced Node version required (for dev builds) to Node LTS
 - Fixed some issues with focus state of mathfields, particularly with multiple
@@ -4221,7 +4654,7 @@ the values match, the shortcut will be applicable. Possible values are:
   `option/alt+|`, `option/alt+\`. Also available are `option/alt+(` and
   `option/alt+)`
 
-### Bug Fixes
+### Issues Resolved
 
 - #155: A cases statement (or a matrix) can now be deleted. The rows and columns
   inside a cases statement (or a matrix) can also be deleted.
@@ -4273,7 +4706,7 @@ the values match, the shortcut will be applicable. Possible values are:
   examples, macros, selectors and config options.
 - Better support for IE11 via transpiling (thanks @synergycodes!)
 
-### Bug fixes
+### Issues Resolved
 
 - #103 - Fixed issues where the math path could become invalid. Also made the
   code more resilient to invalid paths.
@@ -4291,7 +4724,7 @@ the values match, the shortcut will be applicable. Possible values are:
 
 - A Vue.js wrapper and example is available in `examples/vue`
 
-### Bug fixes
+### Issues Resolved
 
 - #104 - Numeric keypard "/" was ignored.
 - #91 - Handling of '~' as an operator and a shortcut.
@@ -4455,7 +4888,7 @@ MathLive.makeMathField(/*...*/);
   last/first element will be skipped. For example, with `\textcolor{}` this
   implements a behavior similar to word processors.
 
-### Bug fixes
+### Issues Resolved
 
 - Fixed #63: improved displayed of `\enclose` over stacked atoms such as
   fractions and `\overset`
@@ -4492,7 +4925,7 @@ MathLive.makeMathField(/*...*/);
 - Removed restrictions on charset in `text`
 - Support shift + arrows to extend the selection with the virtual keyboard
 
-### Bug Fixes
+### Issues Resolved
 
 - More accurate operator precedence. Follow the
   [MathML](www.w3.org/TR/MathML3/appendixc.html) recommendation, except for
@@ -4548,7 +4981,7 @@ MathLive.makeMathField(/*...*/);
 - MathML: improved handling of fences
 - Improved LaTeX output
 
-### Bug Fixes
+### Issues Resolved
 
 - Correctly handle latex output for the `\char` command
 - Correctly handle invalid Unicode code points in the `\char` command
@@ -4578,7 +5011,7 @@ MathLive.makeMathField(/*...*/);
 
 ## 0.18 (2018-03-04)
 
-### Bug Fixes
+### Issues Resolved
 
 - Fixed issue where `\underset` annotation was not selectable
 
@@ -4594,7 +5027,7 @@ MathLive.makeMathField(/*...*/);
 - Improved accessibility support (major contribution from Neil Soiffer)
 - Support for MathML output and LaTeX to MathML conversion.
 
-### Bug Fixes
+### Issues Resolved
 
 - #26 Fixed issue with Chrome 62 where fraction lines and other thin lines would
   intermittently not render.
@@ -4621,7 +5054,7 @@ MathLive.makeMathField(/*...*/);
 - Added `MathField.selectedText()` which returns the textual content of the
   selection.
 
-### Bug Fixes
+### Issues Resolved
 
 - Perform a snapshot with the undo manager when invoking `MathField.insert()`.
 - Documentation improvements.
@@ -4648,7 +5081,7 @@ MathLive.makeMathField(/*...*/);
   field config object.
 - Added tutorials and improved documentation
 
-### Bug Fixes
+### Issues Resolved
 
 - Fixed #5: AZERTY keyboard input was misbehaving, particularly for the `^` key
 - Dead keys (`´`, `^`, `¨`, `˜` and others on some keyboards) were not properly

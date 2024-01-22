@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 test('default space bar', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
-  await page.locator('#mf-1').type('1/y +x');
+  await page.locator('#mf-1').pressSequentially('1/y +x');
 
   // check that space bar navigated out of denominator of fraction
   const latex = await page
@@ -20,7 +20,7 @@ test('default space bar', async ({ page }) => {
 test('custom mathModeSpace', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
-  await page.locator('#mf-3').type('1/y +x');
+  await page.locator('#mf-3').pressSequentially('1/y +x');
 
   // check that space was inserted
   const latex = await page
@@ -60,8 +60,12 @@ test('tab focus', async ({ page }) => {
   // make sure readonly mathfield has focus
   await expect(page.locator('#mf-4')).toBeFocused();
 
-  // Shift-Tab twice to get back to second math field and type
+  // Shift-Tab three times to get back to second math field and type
+  // 1/ go back to end of mf#3
   await page.keyboard.press('Shift+Tab');
+  // 2/ go to start of mf#3
+  await page.keyboard.press('Shift+Tab');
+  // 3/ go to mf#2
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.type('e');
 
@@ -80,8 +84,8 @@ test('tab focus', async ({ page }) => {
 test('smartSuperscript', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
-  await page.locator('#mf-1').type('y^3+z'); // smartSuperscript=true
-  await page.locator('#mf-3').type('y^3+z'); // smartSuperscript=false
+  await page.locator('#mf-1').pressSequentially('y^3+z'); // smartSuperscript=true
+  await page.locator('#mf-3').pressSequentially('y^3+z'); // smartSuperscript=false
 
   // check results
   expect(
@@ -107,7 +111,7 @@ test('cannot edit readonly mathfield', async ({ page }) => {
   ).toBe('x=\\frac{3}{4}');
 
   // attempt to type into readonly mathfiled
-  await page.locator('#mf-4').type('abc');
+  await page.locator('#mf-4').pressSequentially('abc');
 
   // check that latex has not changed
   expect(
@@ -120,14 +124,14 @@ test('escape to enter/exit latex mode', async ({ page }) => {
 
   // use latex mode for math field with default settings
   await page.locator('#mf-1').press('Escape');
-  await page.locator('#mf-1').type('frac');
+  await page.locator('#mf-1').pressSequentially('frac');
   await page.locator('#mf-1').press('Escape');
   // full fraction will be selected, navigate back to numerator
   await page.locator('#mf-1').press('ArrowLeft');
   await page.locator('#mf-1').press('ArrowRight');
-  await page.locator('#mf-1').type('x');
+  await page.locator('#mf-1').pressSequentially('x');
   await page.locator('#mf-1').press('ArrowDown');
-  await page.locator('#mf-1').type('y');
+  await page.locator('#mf-1').pressSequentially('y');
 
   // check latex of result
   expect(
@@ -137,7 +141,7 @@ test('escape to enter/exit latex mode', async ({ page }) => {
   // attempt to use latex mode for math field with latex mode disabled
   // using instructions from: https://cortexjs.io/mathlive/guides/customizing/#turning-off-the-latex-mode
   await page.locator('#mf-5').press('Escape');
-  await page.locator('#mf-5').type('lozenge');
+  await page.locator('#mf-5').pressSequentially('lozenge');
   await page.locator('#mf-5').press('Escape');
 
   // check latex of result
@@ -150,11 +154,11 @@ test('backslash to enter, enter to exit latex mode', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('\\frac');
+  await page.locator('#mf-1').pressSequentially('\\frac');
   await page.locator('#mf-1').press('Enter');
-  await page.locator('#mf-1').type('x');
+  await page.locator('#mf-1').pressSequentially('x');
   await page.locator('#mf-1').press('ArrowDown');
-  await page.locator('#mf-1').type('y');
+  await page.locator('#mf-1').pressSequentially('y');
 
   // check latex of result
   expect(
@@ -163,7 +167,7 @@ test('backslash to enter, enter to exit latex mode', async ({ page }) => {
 
   // attempt to use latex mode for math field with latex mode disabled
   // using instructions from: https://cortexjs.io/mathlive/guides/customizing/#turning-off-the-latex-mode
-  await page.locator('#mf-5').type('\\lozenge');
+  await page.locator('#mf-5').pressSequentially('\\lozenge');
   await page.locator('#mf-5').press('Enter');
 
   // check latex of result
@@ -189,7 +193,7 @@ test('Select all/type to replace selection', async ({ page, browserName }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // add some content to the first math field
-  await page.locator('#mf-1').type('x+y=20');
+  await page.locator('#mf-1').pressSequentially('x+y=20');
 
   await page.locator('#mf-1').press(selectAllCommand);
 
@@ -202,7 +206,7 @@ test('Select all/type to replace selection', async ({ page, browserName }) => {
   expect(selectionLatex).toBe('x+y=20');
 
   // type to replace selection
-  await page.locator('#mf-1').type('30=r+t');
+  await page.locator('#mf-1').pressSequentially('30=r+t');
 
   // make sure math field contents were replaced
   expect(
@@ -222,7 +226,7 @@ test('Select all/type to replace selection', async ({ page, browserName }) => {
   expect(selectionLatex).toBe('r+t');
 
   // type to replace rhs only
-  await page.locator('#mf-1').type('z+y');
+  await page.locator('#mf-1').pressSequentially('z+y');
   expect(
     await page.locator('#mf-1').evaluate((mfe: MathfieldElement) => mfe.value)
   ).toBe('30=z+y');
@@ -259,11 +263,11 @@ test('test up/down arrow fraction navigation', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('x/y');
+  await page.locator('#mf-1').pressSequentially('x/y');
   await page.locator('#mf-1').press('ArrowUp');
-  await page.locator('#mf-1').type('+1');
+  await page.locator('#mf-1').pressSequentially('+1');
   await page.locator('#mf-1').press('ArrowDown');
-  await page.locator('#mf-1').type('+2');
+  await page.locator('#mf-1').pressSequentially('+2');
 
   // check latex of result
   expect(
@@ -275,7 +279,7 @@ test('test inline shortcuts', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('+-grad*alpha+tanx-20>=40');
+  await page.locator('#mf-1').pressSequentially('+-grad*alpha+tanx-20>=40');
 
   // check latex of result
   expect(
@@ -287,9 +291,9 @@ test('underscore subscript', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('x_y -y_s'); // space to exit subscript
+  await page.locator('#mf-1').pressSequentially('x_y -y_s'); // space to exit subscript
   await page.locator('#mf-1').press('ArrowRight'); // right arrow to exit subscript
-  await page.locator('#mf-1').type('+z_rt +20'); // double char subscript
+  await page.locator('#mf-1').pressSequentially('+z_rt +20'); // double char subscript
 
   // check latex of result
   expect(
@@ -303,7 +307,7 @@ test('subscript and superscript', async ({ page }) => {
   // use latex mode for math field with default settings
   await page
     .locator('#mf-1')
-    .type('x_y ^h +y_rr ^a +z_1 ^aa + s_11 ^bb +30+x^h _s -40');
+    .pressSequentially('x_y ^h +y_rr ^a +z_1 ^aa + s_11 ^bb +30+x^h _s -40');
 
   // check latex of result
   expect(
@@ -316,9 +320,9 @@ test('nested paranthesis', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('(((x+y)-r -1');
+  await page.locator('#mf-1').pressSequentially('(((x+y)-r -1');
   await page.locator('#mf-1').press('ArrowRight');
-  await page.locator('#mf-1').type('+30');
+  await page.locator('#mf-1').pressSequentially('+30');
 
   // check latex of result
   expect(
@@ -330,9 +334,9 @@ test('sqrt inline shortcut (#1975)', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('sqrt22');
+  await page.locator('#mf-1').pressSequentially('sqrt22');
   await page.locator('#mf-1').press('ArrowRight');
-  await page.locator('#mf-1').type('=x');
+  await page.locator('#mf-1').pressSequentially('=x');
 
   // check latex of result
   expect(
@@ -345,10 +349,15 @@ test('inline shortcut after long expression (#1978)', async ({ page }) => {
 
   const startingLatex = String.raw`x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`;
 
-  await page.locator('#mf-1').evaluate((e: MathfieldElement, latex: string) => e.value = latex, startingLatex);
+  await page
+    .locator('#mf-1')
+    .evaluate(
+      (e: MathfieldElement, latex: string) => (e.value = latex),
+      startingLatex
+    );
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('+alpha');
+  await page.locator('#mf-1').pressSequentially('+alpha');
 
   // check latex of result
   expect(
@@ -360,11 +369,11 @@ test('keyboard select than divide (#1981)', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('x+y');
+  await page.locator('#mf-1').pressSequentially('x+y');
   await page.locator('#mf-1').press('Shift+ArrowLeft');
   await page.locator('#mf-1').press('Shift+ArrowLeft');
   await page.locator('#mf-1').press('Shift+ArrowLeft');
-  await page.locator('#mf-1').type('/2');
+  await page.locator('#mf-1').pressSequentially('/2');
 
   // check latex of result
   expect(
@@ -376,11 +385,11 @@ test('text mode serialization (#1978)', async ({ page }) => {
   await page.goto('/dist/playwright-test-page/');
 
   // use latex mode for math field with default settings
-  await page.locator('#mf-1').type('x+y');
+  await page.locator('#mf-1').pressSequentially('x+y');
   await page.locator('#mf-1').press(`Shift+'`);
-  await page.locator('#mf-1').type(' Comment ');
+  await page.locator('#mf-1').pressSequentially(' Comment ');
   await page.locator('#mf-1').press(`Shift+'`);
-  await page.locator('#mf-1').type('z-s');
+  await page.locator('#mf-1').pressSequentially('z-s');
 
   // check latex of result
   expect(
@@ -388,8 +397,15 @@ test('text mode serialization (#1978)', async ({ page }) => {
   ).toBe(String.raw`x+y\text{ Comment }z-s`);
 });
 
-test('cross-origin iframe with physical keyboard', async ({ page, browserName, context }) => {
-  test.skip(browserName === "webkit" && Boolean(process.env.CI), "Iframe test is flaky in webkit on GH actions");
+test('cross-origin iframe with physical keyboard', async ({
+  page,
+  browserName,
+  context,
+}) => {
+  test.skip(
+    browserName === 'webkit' && Boolean(process.env.CI),
+    'Iframe test is flaky in webkit on GH actions'
+  );
 
   await page.goto('/dist/playwright-test-page/iframe_test.html');
 
@@ -399,7 +415,7 @@ test('cross-origin iframe with physical keyboard', async ({ page, browserName, c
 
   if (frame) {
     // type with physical keyboard
-    await frame.locator('#mf-1').type('x/20+z');
+    await frame.locator('#mf-1').pressSequentially('x/20+z');
 
     // check resulting latex
     let latex = await frame
@@ -408,6 +424,3 @@ test('cross-origin iframe with physical keyboard', async ({ page, browserName, c
     expect(latex).toBe(String.raw`\frac{x}{20+z}`);
   }
 });
-
-
-

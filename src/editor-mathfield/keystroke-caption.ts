@@ -1,17 +1,14 @@
-import { getKeybindingMarkup } from '../editor/keybindings';
-import type { MathfieldPrivate } from './mathfield-private';
+import type { _Mathfield } from './mathfield-private';
 
 import { injectStylesheet, releaseStylesheet } from '../common/stylesheet';
 
 import {
   getSharedElement,
   releaseSharedElement,
-} from '../editor/shared-element';
+} from '../common/shared-element';
+import { getKeybindingMarkup } from 'ui/events/keyboard';
 
-export function showKeystroke(
-  mathfield: MathfieldPrivate,
-  keystroke: string
-): void {
+export function showKeystroke(mathfield: _Mathfield, keystroke: string): void {
   if (!mathfield.isSelectionEditable || !mathfield.keystrokeCaptionVisible)
     return;
 
@@ -35,7 +32,7 @@ export function showKeystroke(
   }, 3000);
 }
 
-export function toggleKeystrokeCaption(mathfield: MathfieldPrivate): boolean {
+export function toggleKeystrokeCaption(mathfield: _Mathfield): boolean {
   mathfield.keystrokeCaptionVisible = !mathfield.keystrokeCaptionVisible;
   if (!mathfield.keystrokeCaptionVisible) {
     const panel = getSharedElement('mathlive-keystroke-caption-panel');
