@@ -1128,7 +1128,7 @@ export class Atom<T extends (Argument | null)[] = (Argument | null)[]> {
 
     if (this.type === 'group' && this.body?.length === 2) {
       if (this.body![0].type === 'first' && this.body![1].value === ',')
-        return '.';
+        return ',';
     }
     return '';
   }
