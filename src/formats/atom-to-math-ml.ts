@@ -344,11 +344,21 @@ function scanFence(stream: MathMLStream, final: number, options) {
 
     if (found) {
       mathML = '<mrow>';
-      mathML += toMo(stream.atoms[openIndex], options);
 
-      mathML += toMathML(stream.atoms, options, openIndex + 1, closeIndex);
 
-      mathML += toMo(stream.atoms[closeIndex], options);
+      let bodyMathML = toMathML(stream.atoms, options, openIndex + 1, closeIndex);
+
+      let stretchy = true;
+
+      if(!bodyMathML.includes('<mrow>')) {
+        stretchy = false;
+      }
+
+      mathML += toMo(stream.atoms[openIndex], options, stretchy);
+
+      mathML += bodyMathML;
+
+      mathML += toMo(stream.atoms[closeIndex], options, stretchy);
       mathML += '</mrow>';
 
       stream.index = closeIndex + 1;
@@ -577,10 +587,17 @@ export function toMathML(
   return result.mathML;
 }
 
-function toMo(atom, options) {
+function toMo(atom, options, stretchy = true) {
   let result = '';
   const body = toString(atom.value);
-  if (body) result = '<mo' + makeID(atom.id, options) + '>' + body + '</mo>';
+  if (body){
+    if(!stretchy) {
+      result = '<mo' + makeID(atom.id, options) + ' stretchy="false">' + body + '</mo>';
+    }
+    else {
+      result = '<mo' + makeID(atom.id, options) + '>' + body + '</mo>';
+    }
+  } 
 
   return result;
 }
@@ -836,19 +853,30 @@ function atomToMathML(atom, options): string {
 
     case 'leftright':
       const leftrightAtom = atom as LeftRightAtom;
+
+      let bodyMathML = '';
+
+      if (atom.body) bodyMathML = toMathML(atom.body, options);
+
+      let stretchy = '';
+
+      if(!bodyMathML.includes('<mrow>')) {
+        stretchy = 'stretchy="false"';
+      }
+
       const lDelim = leftrightAtom.leftDelim;
       result = '<mrow>';
       if (lDelim && lDelim !== '.') {
-        result += `<mo${makeID(atom.id, options)}>${
+        result += `<mo${makeID(atom.id, options)} ${stretchy}>${
           SPECIAL_DELIMS[lDelim] ?? lDelim
         }</mo>`;
       }
 
-      if (atom.body) result += toMathML(atom.body, options);
+      if (atom.body) result += bodyMathML;
 
       const rDelim = leftrightAtom.matchingRightDelim();
       if (rDelim && rDelim !== '.') {
-        result += `<mo${makeID(atom.id, options)}>${
+        result += `<mo${makeID(atom.id, options)} ${stretchy}>${
           SPECIAL_DELIMS[rDelim] ?? rDelim
         }</mo>`;
       }
