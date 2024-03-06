@@ -19,6 +19,8 @@ function speakableText(
   return atomToSpeakableText(arg1);
 }
 
+/* Kikora MODIFICATION: We have translated the text for aria-live when navigating in the expression */
+
 /**
  * Given an atom, describe the relationship between the atom
  * and its siblings and their parent.
@@ -31,8 +33,8 @@ function relationName(atom: Atom): string {
     if (atom.type === 'first') {
       if (atom.parent!.type === 'root') result = 'mathfield';
       else if (atom.parent!.type === 'surd') result = 'radicand';
-      else if (atom.parent!.type === 'genfrac') result = 'fraction';
-      else if (atom.parent!.type === 'sizeddelim') result = 'delimiter';
+      else if (atom.parent!.type === 'genfrac') result = 'brøk';
+      else if (atom.parent!.type === 'sizeddelim') result = 'skilletegn';
       if (result) return result;
     }
     if (atom.type === 'subsup') {
@@ -43,47 +45,47 @@ function relationName(atom: Atom): string {
     } else if (atom.type) {
       result =
         {
-          'accent': 'accented',
-          'array': 'array',
+          'accent': 'med aksent',
+          'array': 'rekke',
           'box': 'box',
-          'chem': 'chemical formula',
-          'delim': 'delimiter',
-          'enclose': 'cross out',
-          'extensible-symbol': 'extensible symbol',
-          'error': 'error',
-          'first': 'first',
-          'genfrac': 'fraction',
-          'group': 'group',
+          'chem': 'kjemisk formel',
+          'delim': 'skilletegn',
+          'enclose': 'krysse ut',
+          'extensible-symbol': 'utvidbart symbol',
+          'error': 'feil',
+          'first': 'først',
+          'genfrac': 'brøk',
+          'group': 'gruppe',
           'latex': 'LaTeX',
-          'leftright': 'delimiter',
+          'leftright': 'skilletegn',
           'line': 'line',
-          'subsup': 'subscript-superscript',
-          'operator': 'operator',
+          'subsup': 'subskript-superskript',
+          'operator': 'operatør',
           'overunder': 'over-under',
-          'placeholder': 'placeholder',
-          'rule': 'rule',
-          'sizeddelim': 'delimiter',
-          'space': 'space',
-          'spacing': 'spacing',
-          'surd': 'square root',
-          'text': 'text',
+          'placeholder': 'plassholder',
+          'rule': 'regel',
+          'sizeddelim': 'skilletegn',
+          'space': 'mellomrom',
+          'spacing': 'avstand',
+          'surd': 'kvadratrot',
+          'text': 'tekst',
           'prompt': 'prompt',
-          'root': 'math field',
-          'mop': 'operator', // E.g. `\operatorname`, a `mop` with a body
+          'root': 'mattefelt',
+          'mop': 'operatør', // E.g. `\operatorname`, a `mop` with a body
         }[atom.type] ?? 'parent';
     }
   } else if (atom.parent!.type === 'genfrac') {
-    if (atom.parentBranch === 'above') return 'numerator';
+    if (atom.parentBranch === 'above') return 'teller';
 
-    if (atom.parentBranch === 'below') return 'denominator';
+    if (atom.parentBranch === 'below') return 'nevner';
   } else if (atom.parent!.type === 'surd') {
-    if (atom.parentBranch === 'above') result = 'index';
-  } else if (atom.parentBranch === 'superscript') result = 'superscript';
-  else if (atom.parentBranch === 'subscript') result = 'subscript';
+    if (atom.parentBranch === 'above') result = 'indeks';
+  } else if (atom.parentBranch === 'superscript') result = 'opphøyd';
+  else if (atom.parentBranch === 'subscript') result = 'underskrift';
 
   if (!result) console.log('unknown relationship');
 
-  return result ?? 'parent';
+  return result ?? 'gruppe';
 }
 
 /**
@@ -109,7 +111,7 @@ export function defaultAnnounceHook(
     return;
   }
 
-  if (action === 'delete') liveText = speakableText('deleted: ', atoms!);
+  if (action === 'delete') liveText = speakableText('slettet: ', atoms!);
   else if (action === 'focus' || action.includes('move')) {
     //* ** FIX: could also be moveUp or moveDown -- do something different like provide context???
     //* ** FIX -- should be xxx selected/unselected */
@@ -164,7 +166,7 @@ function getRelationshipAsSpokenText(
   let ancestor = previous.parent;
   const newParent = model.at(model.position).parent;
   while (ancestor !== model.root && ancestor !== newParent) {
-    result += `out of ${relationName(ancestor!)};`;
+    result += `ute av ${relationName(ancestor!)};`;
     ancestor = ancestor!.parent;
   }
 
@@ -179,20 +181,20 @@ function getRelationshipAsSpokenText(
  */
 function getNextAtomAsSpokenText(model: _Model): string {
   if (!model.selectionIsCollapsed)
-    return `selected: ${speakableText(model.getAtoms(model.selection))}`;
+    return `markert: ${speakableText(model.getAtoms(model.selection))}`;
 
   let result = '';
 
   // Announce start of denominator, etc
   const cursor = model.at(model.position);
-  if (cursor.isFirstSibling) result = `start of ${relationName(cursor)}: `;
+  if (cursor.isFirstSibling) result = `start på ${relationName(cursor)}: `;
 
   if (cursor.isLastSibling) {
     // Don't say both start and end
     if (!cursor.isFirstSibling) {
       if (!cursor.parent!.parent)
-        return `${speakableText(cursor)}; end of mathfield`;
-      result = `${speakableText(cursor)}; end of ${relationName(cursor)}`;
+        return `${speakableText(cursor)}; slut på mattefelt`;
+      result = `${speakableText(cursor)}; slut på ${relationName(cursor)}`;
     }
   } else result += speakableText(cursor);
 
