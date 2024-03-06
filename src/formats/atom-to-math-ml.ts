@@ -860,7 +860,7 @@ function atomToMathML(atom, options): string {
 
       let stretchy = '';
 
-      if(!bodyMathML.includes('<mrow>')) {
+      if(!bodyMathML.includes('<msub>') && !bodyMathML.includes('<mfrac>') && !bodyMathML.includes('<msup>')) {
         stretchy = 'stretchy="false"';
       }
 
